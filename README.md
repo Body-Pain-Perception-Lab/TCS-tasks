@@ -10,18 +10,6 @@ Continuous **triangular-wave** thermal stimulation via a 5-zone TCS thermode dur
 ### `fMRI_sinusoidal_wave/`
 Variant of the triangular-wave experiment using a **sinusoidal waveform** instead. All other parameters, masks, timing, and infrastructure are identical.
 
-### `fMRI_exp1_thermotopy/`
-First fMRI thermotopy experiment.
-
-### `fMRI_exp2_thermotopy/`
-Second fMRI thermotopy experiment.
-
-### `phs_lifespan/`
-Lifespan behavioural study with pressure and heat stimulation.
-
-### `pressureplate_decision/`
-Pressure plate decision task.
-
 ## Shared Resources
 
 - **`PythonHelpers/`** — Python driver for TCS II thermode (`TcsControl_python3.py`)

@@ -21,6 +21,15 @@ warn() { echo -e "  ${YELLOW}[WARN] $1${NC}"; ((WARN++)); }
 echo "=== Environment check ==="
 echo
 
+# --- 0. Check for active conda/venv environment ---
+if [ -n "${CONDA_DEFAULT_ENV:-}" ]; then
+    pass "Conda environment active: $CONDA_DEFAULT_ENV"
+elif [ -n "${VIRTUAL_ENV:-}" ]; then
+    pass "Virtual environment active: $(basename "$VIRTUAL_ENV")"
+else
+    warn "No conda/venv active — packages may not be found. Try: conda activate psychopy"
+fi
+
 # --- 1. Find a working Python 3 command ---
 PYTHON=""
 for cmd in python3 python py; do

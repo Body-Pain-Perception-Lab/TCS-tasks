@@ -2,35 +2,29 @@
 Configuration for fMRI tprf thermode experiment — v3.
 Same timing as v2. NonTGI mask changed to all 4 zones (P1: zones 1-4 all +1).
 
-Run timing:
+Run timing (each run = two halves with mid-run pause):
     Dummy volumes:   4 x 1.5s =   6.0s
     Pre-baseline:                  6.0s
-    Stimulation:    12 x  28s = 336.0s
+    Half 1:         12 x  28s = 336.0s
+    Mid-run pause:                30.0s  (baseline temperature)
+    Half 2:         12 x  28s = 336.0s
     Post-baseline:                 6.0s
     ─────────────────────────────────────
-    Total:                       354.0s = 5 min 54s = 236 volumes
+    Total:                       720.0s = 12 min 0s = 480 volumes
 
-8 runs per session (each unique run presented twice):
+4 runs per session (each run combines two halves with opposite direction):
     Group A (nontgi_warm_first = True):
-        Run 1: NonTGI warm-first
-        Run 2: NonTGI cool-first
-        Run 3: NonTGI warm-first
-        Run 4: NonTGI cool-first
-        Run 5: TGI warm-first
-        Run 6: TGI cool-first
-        Run 7: TGI warm-first
-        Run 8: TGI cool-first
+        Run 1: NonTGI  [warm-first → pause → cool-first]
+        Run 2: NonTGI  [cool-first → pause → warm-first]
+        Run 3: TGI     [warm-first → pause → cool-first]
+        Run 4: TGI     [cool-first → pause → warm-first]
     Group B (nontgi_warm_first = False):
-        Run 1: NonTGI cool-first
-        Run 2: NonTGI warm-first
-        Run 3: NonTGI cool-first
-        Run 4: NonTGI warm-first
-        Run 5: TGI cool-first
-        Run 6: TGI warm-first
-        Run 7: TGI cool-first
-        Run 8: TGI warm-first
+        Run 1: NonTGI  [cool-first → pause → warm-first]
+        Run 2: NonTGI  [warm-first → pause → cool-first]
+        Run 3: TGI     [cool-first → pause → warm-first]
+        Run 4: TGI     [warm-first → pause → cool-first]
 
-Total scanning time: 8 x 354s = 2832s = 47 min 12s (plus inter-run gaps)
+Total scanning time: 4 x 720s = 2880s = 48 min (plus inter-run gaps)
 """
 
 CONFIG = {
@@ -45,8 +39,9 @@ CONFIG = {
                                  # 50 C/s accounts for the MRI filter on the TCS cable.
     'cycle_duration': 28.0,      # seconds per full bipolar triangle cycle (0.0357 Hz)
                                  # ramp rate = 4 * 17.5 / 28 = 2.5 C/s
-    'cycles_per_block': 12,      # 12 full cycles per run
-    'baseline_buffer': 6.0,      # seconds of baseline before/after block
+    'cycles_per_half': 12,       # 12 full cycles per half (24 total per run)
+    'mid_run_pause': 30.0,       # seconds at baseline between the two halves
+    'baseline_buffer': 6.0,      # seconds of baseline before/after run
 
     # Update rate
     'update_hz': 10,             # thermode update frequency
@@ -81,6 +76,6 @@ CONFIG = {
     'vas_labels': ['Not at all', 'Extremely'],
 
     # Display
-    'fullscreen': True,          # True for scanner
+    'fullscreen': False,         # True for scanner
     'screen_index': 1,           # 0 = primary, 1 = extended display
 }

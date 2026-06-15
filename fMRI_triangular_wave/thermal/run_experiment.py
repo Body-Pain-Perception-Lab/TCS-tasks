@@ -1,19 +1,21 @@
 """
-Run a single block of the fMRI tprf thermode experiment.
+Run a single combined run of the fMRI tprf thermode experiment.
 
-Run this script once per block. The experimenter controls timing between
-blocks (breaks, adjustments, etc.) by simply running the script again.
+Run this script once per run. Each run contains two halves (opposite
+waveform directions) separated by a mid-run pause at baseline temperature.
 
 Each invocation:
     1. GUI step 1: enter participant ID and session
-    2. GUI step 2: see block plan summary (which blocks are done),
-       select which block to run
+    2. GUI step 2: see run plan summary (which runs are done),
+       select which run to execute
     3. Wait for scanner trigger
-    4. Run one block (baseline + 8 cycles + baseline)
-    5. Collect VAS ratings (if enabled)
-    6. Save data and exit
+    4. Half 1 (baseline + 12 cycles)
+    5. Mid-run pause (30s at baseline)
+    6. Half 2 (12 cycles + baseline, opposite direction)
+    7. Collect VAS ratings (if enabled)
+    8. Save data and exit
 
-Output (BIDS, per block):
+Output (BIDS, per run):
     func/sub-XX_ses-XX_task-tprf_run-XX_events_<timestamp>.tsv
     func/sub-XX_ses-XX_task-tprf_run-XX_thermode_<timestamp>.tsv
     func/sub-XX_ses-XX_task-tprf_run-XX_thermode_<timestamp>.json
@@ -29,6 +31,7 @@ import csv
 import copy
 import json
 import glob as _glob
+import platform
 from datetime import datetime
 
 from psychopy import visual, event, core, gui
@@ -42,14 +45,16 @@ from ratings import collect_vas_ratings
 
 
 def get_block_plan(config):
-    """Return the planned 8-block sequence based on config.
+    """Return the planned 4-run sequence based on config.
 
-    Each unique run (condition x direction) is presented twice.
-    NonTGI blocks first (runs 1-4), then TGI blocks (runs 5-8).
+    Each run combines two halves with opposite waveform direction,
+    separated by a mid-run pause. NonTGI runs first (1-2), then TGI (3-4).
+    'warm_first' indicates the direction of the first half; the second
+    half always uses the opposite direction.
 
-    Block order is determined by nontgi_warm_first:
-        True  (Group A): W-first, C-first pairs
-        False (Group B): C-first, W-first pairs
+    Run order is determined by nontgi_warm_first:
+        True  (Group A): first half W-first, then C-first
+        False (Group B): first half C-first, then W-first
     """
     nontgi_mask = config['nontgi_mask']
     tgi_mask = config['tgi_mask']
@@ -58,10 +63,6 @@ def get_block_plan(config):
         return [
             {'block_type': 'NonTGI', 'mask_name': nontgi_mask, 'warm_first': True},
             {'block_type': 'NonTGI', 'mask_name': nontgi_mask, 'warm_first': False},
-            {'block_type': 'NonTGI', 'mask_name': nontgi_mask, 'warm_first': True},
-            {'block_type': 'NonTGI', 'mask_name': nontgi_mask, 'warm_first': False},
-            {'block_type': 'TGI',    'mask_name': tgi_mask,    'warm_first': True},
-            {'block_type': 'TGI',    'mask_name': tgi_mask,    'warm_first': False},
             {'block_type': 'TGI',    'mask_name': tgi_mask,    'warm_first': True},
             {'block_type': 'TGI',    'mask_name': tgi_mask,    'warm_first': False},
         ]
@@ -69,10 +70,6 @@ def get_block_plan(config):
         return [
             {'block_type': 'NonTGI', 'mask_name': nontgi_mask, 'warm_first': False},
             {'block_type': 'NonTGI', 'mask_name': nontgi_mask, 'warm_first': True},
-            {'block_type': 'NonTGI', 'mask_name': nontgi_mask, 'warm_first': False},
-            {'block_type': 'NonTGI', 'mask_name': nontgi_mask, 'warm_first': True},
-            {'block_type': 'TGI',    'mask_name': tgi_mask,    'warm_first': False},
-            {'block_type': 'TGI',    'mask_name': tgi_mask,    'warm_first': True},
             {'block_type': 'TGI',    'mask_name': tgi_mask,    'warm_first': False},
             {'block_type': 'TGI',    'mask_name': tgi_mask,    'warm_first': True},
         ]
@@ -117,8 +114,10 @@ def get_session_info(config):
     # --- Compute run timing for display ---
     import math
     dummy_s = config['dummy_volumes'] * config['TR']
-    stim_s = config['cycles_per_block'] * config['cycle_duration']
-    total_s = dummy_s + config['baseline_buffer'] + stim_s + config['baseline_buffer']
+    half_s = config['cycles_per_half'] * config['cycle_duration']
+    total_s = (dummy_s + config['baseline_buffer']
+               + half_s + config['mid_run_pause'] + half_s
+               + config['baseline_buffer'])
     n_volumes = int(math.ceil(total_s / config['TR']))
     run_min = int(total_s // 60)
     run_sec = int(total_s % 60)
@@ -139,28 +138,33 @@ def get_session_info(config):
     completed = scan_completed_runs(participant_id, session)
     block_plan = get_block_plan(config)
 
-    # Build summary text and find next pending block
+    # Build summary text and find next pending run
     summary_lines = [
-        f'--- Block Plan (8 runs) ---',
+        f'--- Run Plan (4 runs, 2 halves each) ---',
         f'Per run: {n_volumes} volumes, {run_min}m {run_sec}s '
-        f'({config["cycles_per_block"]} cycles x {config["cycle_duration"]:.0f}s, '
-        f'{config["baseline_buffer"]:.0f}s baseline)',
+        f'(2 x {config["cycles_per_half"]} cycles x {config["cycle_duration"]:.0f}s, '
+        f'{config["mid_run_pause"]:.0f}s pause)',
         '',
     ]
+    n_cyc = config['cycles_per_half']
     next_block_idx = None
     for i, block in enumerate(block_plan):
         run_num = f'{i + 1:02d}'
-        direction = 'W-first' if block['warm_first'] else 'C-first'
-        label = f"{block['block_type']}  {block['mask_name']}  {direction}"
-        if run_num in completed:
-            summary_lines.append(f"  Run {i + 1} (run-{run_num}): {label}  [DONE]")
+        cond = block['block_type']
+        if block['warm_first']:
+            direction = (f'Warm-First ({n_cyc} cycles) --> '
+                         f'Cold-First ({n_cyc} cycles)')
         else:
-            summary_lines.append(f"  Run {i + 1} (run-{run_num}): {label}  [--]")
-            if next_block_idx is None:
-                next_block_idx = i
+            direction = (f'Cold-First ({n_cyc} cycles) --> '
+                         f'Warm-First ({n_cyc} cycles)')
+        status = '[DONE]' if run_num in completed else '[--]'
+        summary_lines.append(
+            f"  Run {i + 1} [{cond}]: {direction}  {status}")
+        if run_num not in completed and next_block_idx is None:
+            next_block_idx = i
 
     if next_block_idx is None:
-        next_block_idx = 0  # all blocks done; default to first
+        next_block_idx = 0  # all runs done; default to first
 
     n_done = len(completed)
     summary_lines.append(f'\n  {n_done}/{len(block_plan)} runs completed')
@@ -173,11 +177,23 @@ def get_session_info(config):
                + [c for j, c in enumerate(all_choices) if j != next_block_idx])
 
     # --- Step 2: Block selection with summary ---
-    dlg2 = gui.Dlg(title='fMRI Triangular Wave v2 — Run Block')
+    # Auto-detect serial port format from OS
+    os_name = platform.system()
+    if os_name == 'Linux':
+        port_label = 'Serial port (e.g. /dev/ttyACM0):'
+        default_port = '/dev/ttyACM0'
+    elif os_name == 'Darwin':
+        port_label = 'Serial port (e.g. /dev/tty.usbmodem1101):'
+        default_port = '/dev/tty.usbmodem1101'
+    else:
+        port_label = 'COM port (e.g. COM3, COM8):'
+        default_port = 'COM3'
+
+    dlg2 = gui.Dlg(title='fMRI Triangular Wave v3 — Run Selection')
     dlg2.addText(summary)
     dlg2.addField('Run:', choices=choices)
     dlg2.addField('Max delta (°C):', config['max_delta'])
-    dlg2.addField('COM Port:', config['com_port'])
+    dlg2.addField(port_label, default_port)
     dlg2.addField('Simulation:', config['simulation'])
     dlg2.addField('Emulate scanner:', config['emulate'])
     dlg2.addField('Fullscreen:', config['fullscreen'])
@@ -271,7 +287,8 @@ def write_thermode_json(path, config, info):
         'baseline_temp': config['baseline_temp'],
         'max_delta': config['max_delta'],
         'cycle_duration': config['cycle_duration'],
-        'cycles_per_block': config['cycles_per_block'],
+        'cycles_per_half': config['cycles_per_half'],
+        'mid_run_pause': config['mid_run_pause'],
         'ramp_rate': config['ramp_rate'],
         'TR': config['TR'],
         'config_source': _get_config_source(),
@@ -329,6 +346,108 @@ def wait_for_trigger(config, global_clock, win):
     return trigger_time
 
 
+def _run_mid_pause(duration, thermode, win, global_clock, trigger_time,
+                   config, physio_writer, physio_file, mask_name):
+    """Hold baseline temperature during mid-run pause with thermode logging."""
+    kb = keyboard.Keyboard()
+    update_hz = config['update_hz']
+    sample_interval = 1.0 / update_hz
+    n_samples = int(duration * update_hz)
+    baseline_temps = [config['baseline_temp']] * 5
+
+    thermode.set_baseline()
+
+    fixation = visual.Circle(win, radius=0.01, edges=32,
+                             lineColor='white', fillColor='lightGrey',
+                             pos=(0, 0))
+    pause_text = visual.TextStim(win, text='', pos=(0, -0.35),
+                                 height=0.03, color='grey')
+
+    pause_clock = core.Clock()
+    for i in range(n_samples):
+        target_time = i * sample_interval
+
+        thermode.set_temperatures(baseline_temps)
+        actual = thermode.get_temperatures()
+
+        t_now = global_clock.getTime()
+        t_from_trigger = t_now - trigger_time
+        volume = int(t_from_trigger / config['TR']) + 1
+
+        physio_writer.writerow([
+            f'{t_from_trigger:.4f}',
+            volume,
+            0,
+            'mid_run_pause',
+            -1,
+            mask_name,
+            0,
+            '0.0000',
+            f'{baseline_temps[0]:.2f}', f'{baseline_temps[1]:.2f}',
+            f'{baseline_temps[2]:.2f}', f'{baseline_temps[3]:.2f}',
+            f'{baseline_temps[4]:.2f}',
+            f'{actual[0]}', f'{actual[1]}', f'{actual[2]}',
+            f'{actual[3]}', f'{actual[4]}',
+        ])
+
+        if physio_file is not None and (i + 1) % 10 == 0:
+            physio_file.flush()
+
+        fixation.draw()
+        remaining = duration - pause_clock.getTime()
+        pause_text.text = f'Mid-run pause ({remaining:.0f}s)'
+        pause_text.draw()
+        win.flip()
+
+        keys = kb.getKeys(keyList=['escape'])
+        if keys:
+            raise KeyboardInterrupt("Escape pressed")
+
+        elapsed = pause_clock.getTime() - target_time
+        wait_time = sample_interval - elapsed
+        if wait_time > 0:
+            core.wait(wait_time)
+
+
+def _write_qc_rows(qc_writer, qc_summaries, block_type, mask_name,
+                    warm_first):
+    """Write per-cycle QC summaries to the QC TSV."""
+    for s in qc_summaries:
+        qc_writer.writerow([
+            block_type,
+            mask_name,
+            int(warm_first),
+            s['cycle_index'],
+            f'{s["onset_latency_s"]:.4f}',
+            f'{s["mean_ramp_rate"]:.4f}',
+            f'{s["std_ramp_rate"]:.4f}',
+            f'{s["mean_warming_rate"]:.4f}',
+            f'{s["mean_cooling_rate"]:.4f}',
+            f'{s["warming_cooling_diff"]:.4f}',
+            f'{s["mean_temp_error"]:.4f}',
+            f'{s["max_temp_error"]:.4f}',
+            s['n_ramp_flags'],
+            int(s.get('overheat_flagged', False)),
+            s['n_samples'],
+        ])
+
+
+def _write_event_rows(events_writer, timings, block_type, mask_name,
+                      warm_first):
+    """Write phase timing events to the events TSV."""
+    for phase in timings:
+        events_writer.writerow([
+            f'{phase["onset"]:.4f}',
+            f'{phase["duration"]:.4f}',
+            phase['trial_type'],
+            block_type,
+            mask_name,
+            int(warm_first),
+            'n/a',
+            'n/a',
+        ])
+
+
 def main():
     config = copy.deepcopy(CONFIG)
     info = get_session_info(config)
@@ -340,14 +459,16 @@ def main():
     config['emulate'] = info['emulate']
     config['fullscreen'] = info['fullscreen']
 
-    # Resolve block parameters
+    # Resolve run parameters
     block_type = info['block_type']
     mask_name = info['mask_name']
     mask_array = get_mask(mask_name)
-    warm_first = info['warm_first']
-    direction = 'warm-first' if warm_first else 'cool-first'
+    warm_first = info['warm_first']  # first half's direction
+    dir1 = 'warm-first' if warm_first else 'cool-first'
+    dir2 = 'cool-first' if warm_first else 'warm-first'
 
-    print(f'\n=== Block {info["run"]}: {block_type} | {mask_name} | {direction} ===\n')
+    print(f'\n=== Run {info["run"]}: {block_type} | {mask_name} | '
+          f'Half 1: {dir1}, Half 2: {dir2} ===\n')
 
     # Create BIDS output paths
     paths = create_output_paths(info)
@@ -406,15 +527,16 @@ def main():
     global_clock = core.Clock()
     trigger_time = wait_for_trigger(config, global_clock, win)
 
-    # Run single block
     try:
-        block_result = run_block(
+        # === Half 1 ===
+        print(f'\n--- Half 1: {dir1} ---')
+        half1_result = run_block(
             block_idx=0,
             block_type=block_type,
             mask_name=mask_name,
             mask_array=mask_array,
             warm_first=warm_first,
-            n_blocks=1,
+            n_blocks=2,
             thermode=thermode,
             win=win,
             global_clock=global_clock,
@@ -422,42 +544,60 @@ def main():
             physio_writer=thermode_writer,
             config=config,
             physio_file=thermode_file,
+            include_post_baseline=False,
         )
         thermode_file.flush()
-
-        # Write QC summaries
-        for s in block_result['qc_summaries']:
-            qc_writer.writerow([
-                block_type,
-                mask_name,
-                int(warm_first),
-                s['cycle_index'],
-                f'{s["onset_latency_s"]:.4f}',
-                f'{s["mean_ramp_rate"]:.4f}',
-                f'{s["std_ramp_rate"]:.4f}',
-                f'{s["mean_warming_rate"]:.4f}',
-                f'{s["mean_cooling_rate"]:.4f}',
-                f'{s["warming_cooling_diff"]:.4f}',
-                f'{s["mean_temp_error"]:.4f}',
-                f'{s["max_temp_error"]:.4f}',
-                s['n_ramp_flags'],
-                int(s.get('overheat_flagged', False)),
-                s['n_samples'],
-            ])
+        _write_qc_rows(qc_writer, half1_result['qc_summaries'],
+                        block_type, mask_name, warm_first)
+        _write_event_rows(events_writer, half1_result['timings'],
+                          block_type, mask_name, warm_first)
         qc_file.flush()
 
-        # Write block phase events
-        for phase in block_result['timings']:
-            events_writer.writerow([
-                f'{phase["onset"]:.4f}',
-                f'{phase["duration"]:.4f}',
-                phase['trial_type'],
-                block_type,
-                mask_name,
-                int(warm_first),
-                'n/a',
-                'n/a',
-            ])
+        # === Mid-run pause ===
+        print(f'\n--- Mid-run pause ({config["mid_run_pause"]:.0f}s) ---')
+        pause_onset = global_clock.getTime() - trigger_time
+        _run_mid_pause(
+            config['mid_run_pause'], thermode, win,
+            global_clock, trigger_time, config,
+            thermode_writer, thermode_file, mask_name,
+        )
+        pause_end = global_clock.getTime() - trigger_time
+        events_writer.writerow([
+            f'{pause_onset:.4f}',
+            f'{pause_end - pause_onset:.4f}',
+            'mid_run_pause',
+            block_type,
+            mask_name,
+            'n/a',
+            'n/a',
+            'n/a',
+        ])
+
+        # === Half 2 (opposite direction) ===
+        half2_warm_first = not warm_first
+        print(f'\n--- Half 2: {dir2} ---')
+        half2_result = run_block(
+            block_idx=1,
+            block_type=block_type,
+            mask_name=mask_name,
+            mask_array=mask_array,
+            warm_first=half2_warm_first,
+            n_blocks=2,
+            thermode=thermode,
+            win=win,
+            global_clock=global_clock,
+            trigger_time=trigger_time,
+            physio_writer=thermode_writer,
+            config=config,
+            physio_file=thermode_file,
+            include_pre_baseline=False,
+        )
+        thermode_file.flush()
+        _write_qc_rows(qc_writer, half2_result['qc_summaries'],
+                        block_type, mask_name, half2_warm_first)
+        _write_event_rows(events_writer, half2_result['timings'],
+                          block_type, mask_name, half2_warm_first)
+        qc_file.flush()
 
         # VAS ratings
         if config['vas_enabled']:
@@ -482,14 +622,14 @@ def main():
                 f'{r["question"]}={r["rating"]}' for r in vas_results))
 
         # Done
-        end_msg = visual.TextStim(win, text='Block complete.\nThank you!',
+        end_msg = visual.TextStim(win, text='Run complete.\nThank you!',
                                   pos=(0, 0), height=0.06, color='white')
         end_msg.draw()
         win.flip()
         core.wait(3.0)
 
     except KeyboardInterrupt:
-        print('\nBlock aborted by user.')
+        print('\nRun aborted by user.')
 
     finally:
         thermode.set_baseline()

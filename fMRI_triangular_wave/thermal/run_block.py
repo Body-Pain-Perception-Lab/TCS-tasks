@@ -19,8 +19,16 @@ from qc import ThermalQC
 
 def run_block(block_idx, block_type, mask_name, mask_array, warm_first,
               n_blocks, thermode, win, global_clock, trigger_time,
-              physio_writer, config, physio_file=None):
-    """Run one stimulation block (8 cycles, single mask).
+              physio_writer, config, physio_file=None,
+              include_pre_baseline=True, include_post_baseline=True):
+    """Run one stimulation half (cycles_per_half cycles, single mask).
+
+    Parameters
+    ----------
+    include_pre_baseline : bool
+        If True, run baseline period before stimulation.
+    include_post_baseline : bool
+        If True, run baseline period after stimulation.
 
     Returns
     -------
@@ -31,7 +39,7 @@ def run_block(block_idx, block_type, mask_name, mask_array, warm_first,
             Per-cycle QC metrics.
     """
     import math
-    cycles_total = config['cycles_per_block']   # e.g. 8.5
+    cycles_total = config['cycles_per_half']    # 12 cycles per half
     n_full_cycles = int(cycles_total)            # 8
     frac = cycles_total - n_full_cycles          # 0.5
     update_hz = config['update_hz']
@@ -70,17 +78,19 @@ def run_block(block_idx, block_type, mask_name, mask_array, warm_first,
     timings = []
 
     # --- Pre-block baseline ---
-    pre_onset = global_clock.getTime() - trigger_time
-    _run_baseline_period(config['baseline_buffer'], thermode, win, fixation,
-                         status_text, global_clock, trigger_time, config,
-                         physio_writer, block_idx, block_type, mask_name,
-                         warm_first, n_blocks, physio_file=physio_file, kb=kb)
-    pre_end = global_clock.getTime() - trigger_time
-    timings.append({
-        'onset': pre_onset,
-        'duration': pre_end - pre_onset,
-        'trial_type': 'baseline',
-    })
+    if include_pre_baseline:
+        pre_onset = global_clock.getTime() - trigger_time
+        _run_baseline_period(config['baseline_buffer'], thermode, win, fixation,
+                             status_text, global_clock, trigger_time, config,
+                             physio_writer, block_idx, block_type, mask_name,
+                             warm_first, n_blocks, physio_file=physio_file,
+                             kb=kb)
+        pre_end = global_clock.getTime() - trigger_time
+        timings.append({
+            'onset': pre_onset,
+            'duration': pre_end - pre_onset,
+            'trial_type': 'baseline',
+        })
 
     # --- Stimulation cycles ---
     stim_onset = global_clock.getTime() - trigger_time
@@ -152,7 +162,7 @@ def run_block(block_idx, block_type, mask_name, mask_array, warm_first,
                            if cycle_idx < n_full_cycles
                            else f'{cycles_total}/{cycles_total}')
             status_text.text = (
-                f"Block {block_idx + 1}/{n_blocks} [{block_type}] "
+                f"Half {block_idx + 1}/{n_blocks} [{block_type}] "
                 f"({direction}) | "
                 f"Cycle {cycle_label} | "
                 f"{mask_name} | "
@@ -194,18 +204,19 @@ def run_block(block_idx, block_type, mask_name, mask_array, warm_first,
     })
 
     # --- Post-block baseline ---
-    post_onset = global_clock.getTime() - trigger_time
-    _run_baseline_period(config['baseline_buffer'], thermode, win, fixation,
-                         status_text, global_clock, trigger_time, config,
-                         physio_writer, block_idx, block_type, mask_name,
-                         warm_first, n_blocks, label='Post-block baseline',
-                         physio_file=physio_file, kb=kb)
-    post_end = global_clock.getTime() - trigger_time
-    timings.append({
-        'onset': post_onset,
-        'duration': post_end - post_onset,
-        'trial_type': 'baseline',
-    })
+    if include_post_baseline:
+        post_onset = global_clock.getTime() - trigger_time
+        _run_baseline_period(config['baseline_buffer'], thermode, win, fixation,
+                             status_text, global_clock, trigger_time, config,
+                             physio_writer, block_idx, block_type, mask_name,
+                             warm_first, n_blocks, label='Post-block baseline',
+                             physio_file=physio_file, kb=kb)
+        post_end = global_clock.getTime() - trigger_time
+        timings.append({
+            'onset': post_onset,
+            'duration': post_end - post_onset,
+            'trial_type': 'baseline',
+        })
 
     return {
         'timings': timings,
@@ -260,7 +271,7 @@ def _run_baseline_period(duration, thermode, win, fixation, status_text,
 
         fixation.draw()
         status_text.text = (
-            f"Block {block_idx + 1}/{n_blocks} [{block_type}] | {label}"
+            f"Half {block_idx + 1}/{n_blocks} [{block_type}] | {label}"
         )
         status_text.draw()
         win.flip()

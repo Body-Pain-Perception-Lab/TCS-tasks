@@ -108,6 +108,7 @@ def parse_rows(rows):
     n = len(rows)
     onset = np.empty(n)
     delta = np.empty(n)
+    block_index = np.empty(n, dtype=int)
     cycle_index = np.empty(n, dtype=int)
     zone_set = np.empty((5, n))
     zone_act = np.empty((5, n))
@@ -117,6 +118,7 @@ def parse_rows(rows):
         try:
             onset[i] = float(row[COL_ONSET])
             delta[i] = float(row[COL_DELTA])
+            block_index[i] = int(row[COL_BLOCK_INDEX])
             cycle_index[i] = int(row[COL_CYCLE_INDEX])
             for z in range(5):
                 zone_set[z, i] = float(row[COL_Z1_SET + z])
@@ -125,6 +127,7 @@ def parse_rows(rows):
             # Partial or malformed row — truncate here
             onset = onset[:i]
             delta = delta[:i]
+            block_index = block_index[:i]
             cycle_index = cycle_index[:i]
             zone_set = zone_set[:, :i]
             zone_act = zone_act[:, :i]
@@ -133,6 +136,7 @@ def parse_rows(rows):
     return {
         'onset': onset,
         'delta': delta,
+        'block_index': block_index,
         'cycle_index': cycle_index,
         'zone_set': zone_set,
         'zone_act': zone_act,
@@ -170,9 +174,14 @@ def create_figure(filepath, sidecar):
 
     # Build title from sidecar metadata
     if sidecar:
+        wf = sidecar.get('warm_first')
+        if 'cycles_per_half' in sidecar:
+            # New two-half format
+            direction = 'W-first → C-first' if wf else 'C-first → W-first'
+        else:
+            direction = 'warm-first' if wf else 'cool-first'
         title = (f"QC Monitor — {sidecar.get('block_type', '?')} | "
-                 f"{sidecar.get('mask_name', '?')} | "
-                 f"{'warm-first' if sidecar.get('warm_first') else 'cool-first'}")
+                 f"{sidecar.get('mask_name', '?')} | {direction}")
     else:
         title = f"QC Monitor — {os.path.basename(filepath)}"
     fig.suptitle(title, fontsize=12, fontweight='bold')
@@ -280,19 +289,19 @@ def make_update(filepath, axes, line_objects, state):
                 line_objects['zone_err'][z].set_data([], [])
 
         # Update sample count in title
-        # Cycle counter: count completed cycles from cycle_index column
-        # cycle_index = -1 during baseline, 0-based during stimulation
+        # Cycle counter: count completed cycles using (block_index, cycle_index)
+        # pairs to handle two-half runs where cycle_index resets per half.
+        # cycle_index = -1 during baseline/pause, 0-based during stimulation.
         stim_mask = data['cycle_index'] >= 0
         if np.any(stim_mask):
-            current_cycle = int(data['cycle_index'][stim_mask][-1])
-            # A cycle is "completed" once the next one starts or baseline resumes
-            unique_cycles = set(data['cycle_index'][stim_mask])
-            last_sample_cycle = int(data['cycle_index'][-1])
-            # If last sample is baseline (-1), all seen cycles are done
-            if last_sample_cycle < 0:
-                completed = len(unique_cycles)
+            # Each unique (block_index, cycle_index) pair = one cycle
+            pairs = set(zip(data['block_index'][stim_mask],
+                            data['cycle_index'][stim_mask]))
+            # If last sample is still in stimulation, current cycle is incomplete
+            if data['cycle_index'][-1] >= 0:
+                completed = max(0, len(pairs) - 1)
             else:
-                completed = max(0, len(unique_cycles) - 1)
+                completed = len(pairs)
             total = state.get('total_cycles', '?')
             axes[0].set_title(
                 f'Zone temperatures — cycle {completed} of {total} completed',
@@ -332,16 +341,28 @@ def main():
     sidecar = load_sidecar(json_path) if json_path else None
     if sidecar:
         print(f'Sidecar:   {json_path}')
+        wf = sidecar.get('warm_first')
+        if 'cycles_per_half' in sidecar:
+            direction = 'W-first → C-first' if wf else 'C-first → W-first'
+        else:
+            direction = 'warm-first' if wf else 'cool-first'
         print(f'Block:     {sidecar.get("block_type")} | '
-              f'{sidecar.get("mask_name")} | '
-              f'{"warm-first" if sidecar.get("warm_first") else "cool-first"}')
+              f'{sidecar.get("mask_name")} | {direction}')
     else:
         print('WARNING: No JSON sidecar found; using defaults.')
 
     # Create figure
     fig, axes, line_objects = create_figure(filepath, sidecar)
+
+    # Total cycles: new format has cycles_per_half (x2), old has cycles_per_block
+    if sidecar and 'cycles_per_half' in sidecar:
+        total_cycles = int(sidecar['cycles_per_half']) * 2
+    elif sidecar and 'cycles_per_block' in sidecar:
+        total_cycles = sidecar['cycles_per_block']
+    else:
+        total_cycles = '?'
     state = {
-        'total_cycles': sidecar.get('cycles_per_block', '?') if sidecar else '?',
+        'total_cycles': total_cycles,
     }
 
     update_fn = make_update(filepath, axes, line_objects, state)

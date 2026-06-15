@@ -38,7 +38,7 @@ def _encode_16bit(value):
 class DS5Controller:
     """Wrapper around the Digitimer DS5 serial interface."""
 
-    def __init__(self, port='/dev/ttyUSB0', simulation=False):
+    def __init__(self, port='COM8', simulation=False):
         self.simulation = simulation
         self.port_name = port
         self._pulse_width_ms = 0

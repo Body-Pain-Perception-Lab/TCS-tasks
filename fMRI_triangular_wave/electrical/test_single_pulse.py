@@ -6,10 +6,11 @@ perceptible intensity range. Press Enter to deliver a pulse,
 +/- to adjust amplitude, and q to quit.
 
 Usage:
-    python test_single_pulse.py                          # simulation
+    python test_single_pulse.py                          # real hardware on COM8 (default)
+    python test_single_pulse.py --sim                    # simulation (no hardware)
+    python test_single_pulse.py --port COM8              # real hardware (Windows, electrical)
     python test_single_pulse.py --port /dev/ttyUSB0      # real hardware (Linux)
-    python test_single_pulse.py --port COM4               # real hardware (Windows)
-    python test_single_pulse.py --port /dev/ttyUSB0 --pw 1.0 --start 100 --step 50
+    python test_single_pulse.py --port COM8 --pw 1.0 --start 100 --step 50
 """
 
 import argparse
@@ -132,8 +133,8 @@ def run_test(port, simulation, pulse_width_ms, start_mv, step_mv):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Interactive DS5 single-pulse testing')
-    parser.add_argument('--port', default='/dev/ttyUSB0',
-                        help='Serial port (default: /dev/ttyUSB0)')
+    parser.add_argument('--port', default='COM8',
+                        help='Serial port (default: COM8 — electrical/DS5 CP210x bridge)')
     parser.add_argument('--sim', action='store_true',
                         help='Simulation mode (no hardware)')
     parser.add_argument('--pw', type=float, default=0.5,

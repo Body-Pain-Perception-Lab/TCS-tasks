@@ -4,6 +4,10 @@ fMRI_exp2_thermotopy/
 phs_lifespan/
 pressureplate_decision/
 
+# Third-party reference scripts (not ours)
+fMRI_triangular_wave/thermal/docs/fMRI_experiment_simplified.py
+fMRI_triangular_wave/electrical/docs/fMRI_experiment_simplified.py
+
 # macOS
 .DS_Store
 __MACOSX/

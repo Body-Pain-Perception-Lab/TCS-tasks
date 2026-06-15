@@ -1,0 +1,4 @@
+onset	duration	trial_type	block_type	mask_name	warm_first	response_value	response_time
+6.0163	30.0000	baseline	TGI	TGI_1	1	n/a	n/a
+36.0164	680.0005	stimulation	TGI	TGI_1	1	n/a	n/a
+716.0169	30.0000	baseline	TGI	TGI_1	1	n/a	n/a

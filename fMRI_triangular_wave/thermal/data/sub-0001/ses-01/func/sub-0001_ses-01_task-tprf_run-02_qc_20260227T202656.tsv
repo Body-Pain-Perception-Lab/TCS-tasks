@@ -1,0 +1,9 @@
+block_type	mask_name	warm_first	cycle_index	onset_latency_s	mean_ramp_rate	std_ramp_rate	mean_warming_rate	mean_cooling_rate	warming_cooling_diff	mean_temp_error	max_temp_error	n_ramp_flags	n_samples
+NonTGI	P1_W	0	0	nan	nan	nan	nan	nan	nan	nan	nan	0	0
+NonTGI	P1_W	0	1	nan	nan	nan	nan	nan	nan	nan	nan	0	0
+NonTGI	P1_W	0	2	nan	nan	nan	nan	nan	nan	nan	nan	0	0
+NonTGI	P1_W	0	3	nan	nan	nan	nan	nan	nan	nan	nan	0	0
+NonTGI	P1_W	0	4	nan	nan	nan	nan	nan	nan	nan	nan	0	0
+NonTGI	P1_W	0	5	nan	nan	nan	nan	nan	nan	nan	nan	0	0
+NonTGI	P1_W	0	6	nan	nan	nan	nan	nan	nan	nan	nan	0	0
+NonTGI	P1_W	0	7	nan	nan	nan	nan	nan	nan	nan	nan	0	0

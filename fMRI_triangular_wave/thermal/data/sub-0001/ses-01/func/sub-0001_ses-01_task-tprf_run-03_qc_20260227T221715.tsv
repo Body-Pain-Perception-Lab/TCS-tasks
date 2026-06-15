@@ -1,0 +1,10 @@
+block_type	mask_name	warm_first	cycle_index	onset_latency_s	mean_ramp_rate	std_ramp_rate	mean_warming_rate	mean_cooling_rate	warming_cooling_diff	mean_temp_error	max_temp_error	n_ramp_flags	n_samples
+TGI	TGI_1	1	0	nan	nan	nan	nan	nan	nan	nan	nan	0	0
+TGI	TGI_1	1	1	nan	nan	nan	nan	nan	nan	nan	nan	0	0
+TGI	TGI_1	1	2	nan	nan	nan	nan	nan	nan	nan	nan	0	0
+TGI	TGI_1	1	3	nan	nan	nan	nan	nan	nan	nan	nan	0	0
+TGI	TGI_1	1	4	nan	nan	nan	nan	nan	nan	nan	nan	0	0
+TGI	TGI_1	1	5	nan	nan	nan	nan	nan	nan	nan	nan	0	0
+TGI	TGI_1	1	6	nan	nan	nan	nan	nan	nan	nan	nan	0	0
+TGI	TGI_1	1	7	nan	nan	nan	nan	nan	nan	nan	nan	0	0
+TGI	TGI_1	1	8	nan	nan	nan	nan	nan	nan	nan	nan	0	0

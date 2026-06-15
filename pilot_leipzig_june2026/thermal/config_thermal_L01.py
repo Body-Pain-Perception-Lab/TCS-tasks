@@ -43,7 +43,7 @@ CONFIG = {
     'simulation': True,           # True = no thermode commands (set False for real)
 
     # --- Thermal ---
-    'baseline_temp': 32.0,        # degrees C (QST standard)
+    'baseline_temp': 30.0,        # degrees C
     'temp_min': 0.0,              # degrees C (safety clamp lower bound)
     'temp_max': 50.0,             # degrees C (safety clamp upper bound)
 

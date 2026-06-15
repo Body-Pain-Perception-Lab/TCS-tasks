@@ -43,6 +43,14 @@ CONFIG = {
     'start_amplitude_mv': 100,    # starting amplitude (mV input to DS5)
     'step_mv': 50,                # default step size (mV)
 
+    # --- Thresholding ---
+    'thresh_start_mv': 50,        # starting amplitude (low, sub-threshold)
+    'thresh_step_mv': 25,         # step size per trial
+    'thresh_step_fine_mv': 10,    # fine step after first detection
+    'thresh_n_runs': 3,           # number of ascending runs
+    'thresh_iti': 3.0,            # inter-trial interval (s)
+    'thresh_max_mv': 2000,        # safety ceiling (mV) — stop if reached
+
     # DS5 front panel range (informational — set manually on device):
     #   ±1V  / ±10mA
     #   ±2.5V / ±25mA

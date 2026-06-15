@@ -7,6 +7,7 @@ perceptible intensity range. Press Enter to deliver a pulse,
 
 Usage:
     python test_single_pulse.py                          # real hardware on COM8 (default)
+    python test_single_pulse.py --check                  # connectivity test only (no pulse)
     python test_single_pulse.py --sim                    # simulation (no hardware)
     python test_single_pulse.py --port COM8              # real hardware (Windows, electrical)
     python test_single_pulse.py --port /dev/ttyUSB0      # real hardware (Linux)
@@ -130,11 +131,56 @@ def run_test(port, simulation, pulse_width_ms, start_mv, step_mv):
     print(f'  Log saved: {log_path}')
 
 
+def run_check(port):
+    """Connectivity self-test: open the port, run the DS5 init handshake and
+    set width/amplitude, read any reply — but NEVER trigger a pulse.
+
+    Verifies driver/port/cable/firmware comms without delivering stimulation.
+    Returns 0 on success, 1 on failure.
+    """
+    import time
+    import serial
+
+    print(f'\n  DS5 connectivity check — {port}')
+    try:
+        ds5 = DS5Controller(port=port, simulation=False)
+    except serial.SerialException as e:
+        print(f'    FAIL: could not open {port} -> {e}')
+        print('    (Check the device is plugged in and not held open by '
+              'another program.)')
+        return 1
+
+    print(f'    opened {port} @ {ds5.ser.baudrate} baud  '
+          f'(is_open={ds5.ser.is_open})')
+    print('    init handshake sent: N (zero counter), E1 (electrode), '
+          '0xFF (enable)')
+
+    ds5.set_pulse_width(0.5)
+    ds5.set_amplitude(100)
+    print('    sent set_pulse_width(0.5 ms) + set_amplitude(100 mV)')
+
+    time.sleep(0.1)
+    n = ds5.ser.in_waiting
+    data = ds5.ser.read(n) if n else b''
+    ds5.close()
+
+    if data:
+        print(f'    device replied with {len(data)} byte(s): {data!r}  '
+              '(bidirectional comms OK)')
+    else:
+        print('    no reply bytes (port opened and writes accepted, but '
+              'device did not respond)')
+    print('    NO pulse triggered. CONNECTIVITY OK.\n')
+    return 0
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Interactive DS5 single-pulse testing')
     parser.add_argument('--port', default='COM8',
                         help='Serial port (default: COM8 — electrical/DS5 CP210x bridge)')
+    parser.add_argument('--check', action='store_true',
+                        help='Connectivity self-test only (no pulse), then exit')
     parser.add_argument('--sim', action='store_true',
                         help='Simulation mode (no hardware)')
     parser.add_argument('--pw', type=float, default=0.5,
@@ -144,6 +190,9 @@ if __name__ == '__main__':
     parser.add_argument('--step', type=float, default=50,
                         help='Amplitude step size in mV (default: 50)')
     args = parser.parse_args()
+
+    if args.check:
+        sys.exit(run_check(args.port))
 
     run_test(port=args.port,
              simulation=args.sim,

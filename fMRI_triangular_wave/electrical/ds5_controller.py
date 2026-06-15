@@ -16,11 +16,20 @@ Serial protocol (derived from collaborator reference script + DS5 manual):
     Multi-byte values are encoded as 16-bit big-endian:
         value = hByte * 256 + lByte
 
-Output current depends on the DS5 front panel range setting:
-    ±1V  input → ±10mA output  (10 mA/V)
-    ±2.5V input → ±25mA output (10 mA/V)
-    ±5V  input → ±25mA output  ( 5 mA/V)
-    ±10V input → ±50mA output  ( 5 mA/V)
+Output current depends on the DS5 front panel range setting (the
+"max control voltage : max output current" pair shown on the device).
+
+This lab's DS5 is configured to:
+    ±10V input → ±10mA output  (1 mA/V, i.e. 0.001 mA per mV)
+
+so the command voltage sent via set_amplitude() maps to current as:
+    current_mA = millivolts / 1000
+    e.g.  100 mV →  0.1 mA      500 mV → 0.5 mA
+         1000 mV →  1.0 mA    10000 mV → 10.0 mA (full scale / max)
+
+NOTE: full scale on this range is 10000 mV (10 V → 10 mA). Do not
+command above 10000 mV. If the DS5 front-panel range is ever changed,
+update the scaling above accordingly.
 """
 
 import time
@@ -80,10 +89,13 @@ class DS5Controller:
     def set_amplitude(self, millivolts):
         """Set pulse amplitude as DS5 input voltage in millivolts.
 
-        The actual output current depends on the DS5 front panel range:
-            millivolts=1000 (1V) at ±10mA range → 10 mA
-            millivolts=1000 (1V) at ±25mA/2.5V range → 10 mA
-            millivolts=1000 (1V) at ±25mA/5V range → 5 mA
+        On this lab's DS5 range (±10V → ±10mA, i.e. 1 mA/V) the output
+        current is simply:
+            current_mA = millivolts / 1000
+            e.g.  millivolts=100  → 0.1 mA
+                  millivolts=500  → 0.5 mA
+                  millivolts=1000 → 1.0 mA
+        Full scale is millivolts=10000 (10 V → 10 mA); do not exceed it.
 
         Parameters
         ----------

@@ -37,6 +37,30 @@ For **real scanning**:
 'screen_index': 1,      # projector screen
 ```
 
+## Pre-Run Thermode Check
+
+After an overheat or between runs, verify the thermode can track setpoints before committing the scanner:
+
+```bash
+cd fMRI_triangular_wave
+python thermode_precheck.py
+```
+
+This runs a 14s test ramp (baseline → +5°C → baseline) on all 5 zones at 10 Hz and evaluates tracking. Each zone is checked against three criteria:
+
+| Criterion | Threshold |
+|-----------|-----------|
+| Mean tracking error | < 1.5 °C |
+| Max tracking error | < 4.0 °C |
+| Responsiveness (actual temp range) | > 1.0 °C |
+
+The script prints **PASS** or **FAIL** per zone and saves a JSON report (with the full config snapshot) to `data/precheck_<timestamp>.json`.
+
+- **PASS**: safe to start the next run
+- **FAIL**: thermode hasn't recovered — wait and retry
+
+To dry-run without hardware: `python thermode_precheck.py --sim`
+
 ## Running a Run
 
 ### Terminal 1 — Experiment
@@ -131,6 +155,7 @@ After each run, verify in the console output:
 - [ ] `warm` and `cool` rates are similar (no large asymmetry)
 - [ ] `err` stays below 2.0 C (mean temperature error)
 - [ ] `flags=0` or very low (ramp rate deviation count)
+- [ ] No `!! OVERHEAT` tag on any cycle
 
 In the QC monitor dashboard:
 
@@ -146,4 +171,5 @@ In the QC monitor dashboard:
 | QC monitor shows stale data | Close and reopen `qc_monitor.py` to pick up the latest file |
 | Monitor picks up wrong file | Pass the file path explicitly: `python qc_monitor.py path/to/file.tsv` |
 | High temperature error in QC | Check thermode connections; may indicate hardware lag or communication issue |
+| `*** OVERHEAT WARNING ***` in console | Thermode can't track setpoints (mean error > 3°C for 5s). Data for this run may be unusable. After the run, wait for cooldown and run `python thermode_precheck.py` before the next run |
 | Escape pressed during run | Run aborts; thermode returns to baseline; data up to that point is saved |

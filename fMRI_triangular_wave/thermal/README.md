@@ -4,7 +4,7 @@ Continuous triangular-wave thermal stimulation delivered via a 5-zone TCS thermo
 
 Built with **PsychoPy** (Python). Each run is executed as an independent invocation of the script, giving the experimenter full control over inter-run timing.
 
-> **Note:** Original v1 parameters (70s cycle, 1 C/s, 8.5 cycles, 30s baselines) are preserved in `config_v1.py`. The active configuration is `config_v2.py`.
+> **Note:** The active configuration is `config_v3.py`. Previous versions are archived in `pilots/` (`config.py`, `config_v1.py`) and `config_v2.py`.
 
 ## Requirements
 
@@ -19,7 +19,7 @@ Built with **PsychoPy** (Python). Each run is executed as an independent invocat
 python run_experiment.py
 ```
 
-Default settings in `config_v2.py` have `simulation = True` and `emulate = True`, so no thermode hardware or scanner trigger is needed. Press **space** to start after the trigger prompt.
+Default settings in `config_v3.py` have `simulation = False` and `emulate = False`. For testing without hardware, set `simulation = True` and `emulate = True`, then press **space** to start after the trigger prompt.
 
 ## Experimental Design
 
@@ -85,12 +85,11 @@ Each mask defines how the 5 thermode zones respond to the delta waveform:
 - `-1` = cool zone: `T = baseline - delta`
 - ` 0` = neutral zone: `T = baseline`
 
-**Non-TGI masks** (uniform polarity, 2 adjacent zones; counterbalanced across participants):
+**Non-TGI mask** (uniform polarity, all 4 active zones; same for all participants):
 
 | Mask | Z1  | Z2  | Z3  | Z4  | Z5  | Description |
 |------|-----|-----|-----|-----|-----|-------------|
-| P1   | +1  | +1  |  0  |  0  |  0  | Proximal (zones 1-2) |
-| P3   |  0  |  0  | +1  | +1  |  0  | Distal (zones 3-4) |
+| P1   | +1  | +1  | +1  | +1  |  0  | All 4 zones in phase |
 
 **TGI mask** (alternating warm/cool; same for all participants):
 
@@ -98,14 +97,14 @@ Each mask defines how the 5 thermode zones respond to the delta waveform:
 |------|-----|-----|-----|-----|-----|-------------|
 | TGI  | +1  | -1  | +1  | -1  |  0  | W-C alternating |
 
-Each participant is assigned **one NonTGI mask** (`P1` or `P3`, counterbalanced) and the **TGI mask**. Polarity reversal is handled by the warm-first/cool-first waveform direction, so no separate _W/_C mask variants are needed.
+Polarity reversal is handled by the warm-first/cool-first waveform direction, so no separate _W/_C mask variants are needed.
 
 ## Running the Experiment
 
 ### Step-by-Step
 
-1. **Edit `config_v2.py`** before the session to set participant-specific parameters:
-   - `nontgi_mask`: which NonTGI mask (`'P1'` or `'P3'`)
+1. **Edit `config_v3.py`** before the session to set participant-specific parameters:
+   - `nontgi_mask`: `'P1'` (all 4 zones, same for all participants)
    - `tgi_mask`: `'TGI'` (same for all participants)
    - `nontgi_warm_first`: `True` (Group A) or `False` (Group B)
    - `com_port`: serial port for the TCS thermode
@@ -223,24 +222,30 @@ The dashboard updates every 2 seconds by re-reading the TSV file. Thermode data 
 ## File Structure
 
 ```
-fMRI_triangular_wave/
-  config_v2.py       — Active configuration (v2: 28s cycles, 2.5 C/s, 8 runs)
-  config_v1.py       — Archived v1 configuration (70s cycles, 1 C/s, 4 runs)
-  waveform.py        — Triangle wave generation + phase shifting + mask application
-  masks.py           — Spatial mask definitions (NonTGI and TGI)
-  thermode.py        — TCS thermode hardware wrapper (real + simulation mode)
-  qc.py              — Real-time quality control tracking
-  qc_monitor.py      — Live matplotlib QC dashboard (run in second terminal)
-  ratings.py         — VAS rating scales (keyboard-controlled, MRI-compatible)
-  run_block.py       — Single block execution (cycle loop, 10Hz updates, logging)
-  run_experiment.py  — Main entry point (GUI, trigger, block runner)
-  README.md          — This file
-  data/              — Output directory (created automatically)
+thermal/
+  config_v3.py           — Active configuration (v3: 4-zone NonTGI mask)
+  config_v2.py           — Previous config (2-zone NonTGI mask)
+  pilots/                — Archived pilot configs (config.py, config_v1.py)
+  waveform.py            — Triangle wave generation + phase shifting + mask application
+  masks.py               — Spatial mask definitions (NonTGI and TGI)
+  thermode.py            — TCS thermode hardware wrapper (real + simulation mode)
+  thermode_precheck.py   — Pre-run thermode tracking check
+  qc.py                  — Real-time quality control + overheat detection
+  qc_monitor.py          — Live matplotlib QC dashboard (run in second terminal)
+  ratings.py             — VAS rating scales (keyboard-controlled, MRI-compatible)
+  run_block.py           — Single block execution (cycle loop, 10Hz updates, logging)
+  run_experiment.py      — Main entry point (GUI, trigger, block runner)
+  generate_design_matrix.py — GLM/pRF design matrices (post-processing)
+  fourier_analysis.py    — Fourier analysis
+  cluster_fourier/       — Cluster batch scripts for Fourier analysis
+  docs/                  — TCS hardware manual
+  data/                  — Output directory (created automatically)
+  README.md              — This file
 ```
 
 ## Configuration Reference
 
-All parameters are in `config_v2.py`. Key settings:
+All parameters are in `config_v3.py`. Key settings:
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
@@ -255,7 +260,7 @@ All parameters are in `config_v2.py`. Key settings:
 | `TR` | 1.5 | Scanner repetition time (s) |
 | `dummy_volumes` | 4 | Dummy volumes to discard after trigger |
 | `trigger_key` | `'t'` | Scanner trigger key |
-| `nontgi_mask` | `'P1'` | NonTGI mask (`'P1'` or `'P3'`, counterbalanced) |
+| `nontgi_mask` | `'P1'` | NonTGI mask (all 4 zones) |
 | `tgi_mask` | `'TGI'` | TGI mask (same for all participants) |
 | `nontgi_warm_first` | `True` | Run order counterbalancing |
 | `com_port` | `'COM3'` | TCS thermode serial port |
@@ -265,10 +270,9 @@ All parameters are in `config_v2.py`. Key settings:
 
 ## Counterbalancing
 
-Two levels of counterbalancing across participants:
+Counterbalancing across participants:
 
-1. **NonTGI mask position** (between-subjects): each participant gets `P1` (proximal) or `P3` (distal), set in `config_v2.py`. TGI mask is the same for all participants.
-2. **Run order** (between-subjects): `nontgi_warm_first = True` (Group A) runs warm-first before cool-first in each pair; `False` (Group B) reverses the order. NonTGI runs always precede TGI runs.
+- **Run order** (between-subjects): `nontgi_warm_first = True` (Group A) runs warm-first before cool-first in each pair; `False` (Group B) reverses the order. NonTGI runs always precede TGI runs.
 
 Both sweep directions (warm-first and cool-first) are run within-subject to enable cancellation of HRF delay in phase-encoding analysis.
 

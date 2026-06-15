@@ -23,7 +23,7 @@ import sys
 import time
 from datetime import datetime
 
-from config import CONFIG
+from config_v3 import CONFIG
 from thermode import ThermodeController
 
 

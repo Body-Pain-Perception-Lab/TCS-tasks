@@ -77,5 +77,5 @@ CONFIG = {
 
     # Display
     'fullscreen': False,         # True for scanner
-    'screen_index': 1,           # 0 = primary, 1 = extended display
+    'screen_index': 0,           # 0 = primary, 1 = extended display
 }

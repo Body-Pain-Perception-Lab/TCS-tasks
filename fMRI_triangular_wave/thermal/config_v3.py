@@ -52,7 +52,9 @@ CONFIG = {
     'update_hz': 10,             # thermode update frequency
 
     # MR
-    'trigger_key': 't',          # scanner trigger key
+    'trigger_mode': 'keyboard',  # 'keyboard' (key press) or 'parallel' (parallel port)
+    'trigger_key': 't',          # scanner trigger key (keyboard mode)
+    'parallel_port': 0,          # parallel port address (parallel mode, Leipzig 7T)
     'TR': 1.5,                   # seconds
     'dummy_volumes': 4,
     'emulate': False,            # True = use space instead of trigger
@@ -67,7 +69,10 @@ CONFIG = {
     'nontgi_warm_first': True,
 
     # Thermode
-    'com_port': 'COM3',          # serial port
+    'com_port': 'COM3',          # serial port (Windows: 'COM3', Linux: '/dev/ttyACM0')
+    'tcs_filter': None,          # TCS MRI cable filter: None, 'low', 'medium', 'high'
+                                 # Set to 'medium' at Leipzig 7T (reduces MRI interference)
+                                 # Set to None if the TCS library doesn't support set_filter()
     'simulation': False,         # True = no thermode commands
 
     # VAS ratings

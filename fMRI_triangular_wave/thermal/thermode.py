@@ -42,6 +42,16 @@ class ThermodeController:
         if not self.simulation:
             import TcsControl_python3 as TCS
             self.device = TCS.TcsDevice(port=config['com_port'])
+            # MRI cable filter (requires newer TcsControl_python3 with set_filter)
+            tcs_filter = config.get('tcs_filter')
+            if tcs_filter is not None:
+                if hasattr(self.device, 'set_filter'):
+                    self.device.set_filter(tcs_filter)
+                    print(f'TCS filter set to: {tcs_filter}')
+                else:
+                    print(f'WARNING: tcs_filter={tcs_filter!r} requested but '
+                          f'TcsControl_python3 does not support set_filter(). '
+                          f'Update the library or set tcs_filter to None.')
             self.device.set_quiet()
             self.device.set_baseline(config['baseline_temp'])
             self.device.set_durations([self.MAX_DURATION_S] * 5)

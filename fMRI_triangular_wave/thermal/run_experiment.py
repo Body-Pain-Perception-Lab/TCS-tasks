@@ -284,17 +284,32 @@ def write_thermode_json(path, config, info):
 def wait_for_trigger(config, global_clock, win):
     """Wait for scanner trigger or space bar, return trigger time.
 
-    Uses psychopy.hardware.keyboard.Keyboard which listens globally,
-    so the trigger is detected even when the PsychoPy window does not
-    have focus (e.g. when the experimenter is working on display 1).
+    Supports two trigger modes (set via config['trigger_mode']):
+        'keyboard'  — PsychoPy keyboard listener (default). Detects a key
+                       press even when the window doesn't have focus.
+        'parallel'  — Parallel port falling edge on the Acknowledge pin.
+                       Used at Leipzig 7T (parallel module required).
+
+    In emulation mode, always uses space bar regardless of trigger_mode.
     """
-    kb = keyboard.Keyboard()
-    if not config['emulate']:
-        print('Waiting for scanner trigger...')
-        kb.waitKeys(keyList=[config['trigger_key']])
-    else:
+    if config['emulate']:
+        kb = keyboard.Keyboard()
         print('Press space to start...')
         kb.waitKeys(keyList=['space'])
+
+    elif config.get('trigger_mode', 'keyboard') == 'parallel':
+        import parallel
+        p_sc = parallel.Parallel(port=config.get('parallel_port', 0))
+        p_sc.setDataDir(0)
+        p_sc.setData(0)
+        print('Waiting for scanner trigger (parallel port)...')
+        while p_sc.getInAcknowledge():
+            pass  # spin until falling edge
+
+    else:
+        kb = keyboard.Keyboard()
+        print(f'Waiting for scanner trigger (key={config["trigger_key"]!r})...')
+        kb.waitKeys(keyList=[config['trigger_key']])
 
     trigger_time = global_clock.getTime()
     print(f'Trigger received at {trigger_time:.4f}s')

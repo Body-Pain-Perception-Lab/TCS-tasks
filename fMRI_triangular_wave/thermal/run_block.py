@@ -11,7 +11,6 @@ onset latency, and temperature error.
 """
 
 from psychopy import core, event, visual
-from psychopy.hardware import keyboard
 
 from waveform import generate_delta_waveform, phase_shift_waveform, apply_mask
 from qc import ThermalQC
@@ -68,8 +67,8 @@ def run_block(block_idx, block_type, mask_name, mask_array, warm_first,
     # Polarity of first active zone (for NonTGI warm/cold labelling)
     active_polarity = next((m for m in mask_array if m != 0), 0)
 
-    # Global keyboard listener (detects keys even without window focus)
-    kb = keyboard.Keyboard()
+    # Clear any stale key events
+    event.clearEvents()
 
     # Quality control tracker
     qc = ThermalQC(config)
@@ -83,8 +82,7 @@ def run_block(block_idx, block_type, mask_name, mask_array, warm_first,
         _run_baseline_period(config['baseline_buffer'], thermode, win, fixation,
                              status_text, global_clock, trigger_time, config,
                              physio_writer, block_idx, block_type, mask_name,
-                             warm_first, n_blocks, physio_file=physio_file,
-                             kb=kb)
+                             warm_first, n_blocks, physio_file=physio_file)
         pre_end = global_clock.getTime() - trigger_time
         timings.append({
             'onset': pre_onset,
@@ -173,7 +171,7 @@ def run_block(block_idx, block_type, mask_name, mask_array, warm_first,
             status_text.draw()
             win.flip()
 
-            keys = kb.getKeys(keyList=['escape'])
+            keys = event.getKeys(keyList=['escape'])
             if keys:
                 raise KeyboardInterrupt("Escape pressed")
 
@@ -210,7 +208,7 @@ def run_block(block_idx, block_type, mask_name, mask_array, warm_first,
                              status_text, global_clock, trigger_time, config,
                              physio_writer, block_idx, block_type, mask_name,
                              warm_first, n_blocks, label='Post-block baseline',
-                             physio_file=physio_file, kb=kb)
+                             physio_file=physio_file)
         post_end = global_clock.getTime() - trigger_time
         timings.append({
             'onset': post_onset,
@@ -229,8 +227,6 @@ def _run_baseline_period(duration, thermode, win, fixation, status_text,
                          block_idx, block_type, mask_name, warm_first,
                          n_blocks, label='Baseline', physio_file=None, kb=None):
     """Hold baseline temperature for a specified duration."""
-    if kb is None:
-        kb = keyboard.Keyboard()
     update_hz = config['update_hz']
     sample_interval = 1.0 / update_hz
     n_samples = int(duration * update_hz)
@@ -276,7 +272,7 @@ def _run_baseline_period(duration, thermode, win, fixation, status_text,
         status_text.draw()
         win.flip()
 
-        keys = kb.getKeys(keyList=['escape'])
+        keys = event.getKeys(keyList=['escape'])
         if keys:
             raise KeyboardInterrupt("Escape pressed")
 

@@ -22,7 +22,6 @@ import platform
 from datetime import datetime
 
 from psychopy import visual, event, core, gui
-from psychopy.hardware import keyboard
 
 from config_v3 import CONFIG
 from masks import get_mask

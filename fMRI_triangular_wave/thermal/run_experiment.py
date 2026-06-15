@@ -35,7 +35,6 @@ import platform
 from datetime import datetime
 
 from psychopy import visual, event, core, gui
-from psychopy.hardware import keyboard
 
 from config_v3 import CONFIG
 from masks import get_mask
@@ -310,9 +309,8 @@ def wait_for_trigger(config, global_clock, win):
     In emulation mode, always uses space bar regardless of trigger_mode.
     """
     if config['emulate']:
-        kb = keyboard.Keyboard()
         print('Press space to start...')
-        kb.waitKeys(keyList=['space'])
+        event.waitKeys(keyList=['space'])
 
     elif config.get('trigger_mode', 'keyboard') == 'parallel':
         import parallel
@@ -324,9 +322,8 @@ def wait_for_trigger(config, global_clock, win):
             pass  # spin until falling edge
 
     else:
-        kb = keyboard.Keyboard()
         print(f'Waiting for scanner trigger (key={config["trigger_key"]!r})...')
-        kb.waitKeys(keyList=[config['trigger_key']])
+        event.waitKeys(keyList=[config['trigger_key']])
 
     trigger_time = global_clock.getTime()
     print(f'Trigger received at {trigger_time:.4f}s')
@@ -349,7 +346,6 @@ def wait_for_trigger(config, global_clock, win):
 def _run_mid_pause(duration, thermode, win, global_clock, trigger_time,
                    config, physio_writer, physio_file, mask_name):
     """Hold baseline temperature during mid-run pause with thermode logging."""
-    kb = keyboard.Keyboard()
     update_hz = config['update_hz']
     sample_interval = 1.0 / update_hz
     n_samples = int(duration * update_hz)
@@ -399,7 +395,7 @@ def _run_mid_pause(duration, thermode, win, global_clock, trigger_time,
         pause_text.draw()
         win.flip()
 
-        keys = kb.getKeys(keyList=['escape'])
+        keys = event.getKeys(keyList=['escape'])
         if keys:
             raise KeyboardInterrupt("Escape pressed")
 

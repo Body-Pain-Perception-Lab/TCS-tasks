@@ -61,15 +61,11 @@ else
 fi
 
 # --- 3. Check required packages ---
-for pkg in psychopy numpy scipy matplotlib psychtoolbox; do
+for pkg in psychopy numpy scipy matplotlib; do
     if "$PYTHON" -c "import $pkg" 2>/dev/null; then
         pass "$pkg installed"
     else
-        if [ "$pkg" = "psychtoolbox" ]; then
-            warn "$pkg not installed — keyboard detection may be unreliable. Run: $PYTHON -m pip install $pkg"
-        else
-            fail "$pkg not installed — run: $PYTHON -m pip install $pkg"
-        fi
+        fail "$pkg not installed — run: $PYTHON -m pip install $pkg"
     fi
 done
 

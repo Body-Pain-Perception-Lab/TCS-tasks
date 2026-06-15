@@ -54,6 +54,8 @@ def get_session_info(config):
         default_port = 'COM3'
 
     dlg1 = gui.Dlg(title='Single Half Recovery')
+    if hasattr(dlg1, 'requiredMsg'):
+        dlg1.requiredMsg.hide()
     dlg1.addText(f'Single half: {n_volumes} volumes, {run_min}m {run_sec}s '
                  f'({config["cycles_per_half"]} cycles x '
                  f'{config["cycle_duration"]:.0f}s)')
@@ -62,6 +64,7 @@ def get_session_info(config):
     dlg1.addField('Run number:', '01')
     dlg1.addField('Condition:', choices=['NonTGI', 'TGI'])
     dlg1.addField('Direction:', choices=['warm-first', 'cool-first'])
+    dlg1.addField('Body site:', choices=['Arm', 'Leg'])
     dlg1.addField('Max delta (°C):', config['max_delta'])
     dlg1.addField(port_label, default_port)
     dlg1.addField('Simulation:', config['simulation'])
@@ -84,11 +87,12 @@ def get_session_info(config):
         'block_type': condition,
         'mask_name': mask_name,
         'warm_first': data1[4] == 'warm-first',
-        'max_delta': float(data1[5]),
-        'com_port': data1[6],
-        'simulation': data1[7],
-        'emulate': data1[8],
-        'fullscreen': data1[9],
+        'body_site': data1[5],
+        'max_delta': float(data1[6]),
+        'com_port': data1[7],
+        'simulation': data1[8],
+        'emulate': data1[9],
+        'fullscreen': data1[10],
     }
 
 
@@ -132,6 +136,7 @@ def write_thermode_json(path, config, info):
         'block_type': info['block_type'],
         'mask_name': info['mask_name'],
         'warm_first': info['warm_first'],
+        'body_site': info['body_site'],
         'baseline_temp': config['baseline_temp'],
         'max_delta': config['max_delta'],
         'cycle_duration': config['cycle_duration'],
@@ -164,7 +169,7 @@ def main():
     direction = 'warm-first' if warm_first else 'cool-first'
 
     print(f'\n=== Single Half Recovery ===')
-    print(f'Run {info["run"]}: {block_type} | {mask_name} | {direction}')
+    print(f'Run {info["run"]}: {block_type} | {mask_name} | {info["body_site"]} | {direction}')
     print(f'{config["cycles_per_half"]} cycles\n')
 
     # Create BIDS output paths

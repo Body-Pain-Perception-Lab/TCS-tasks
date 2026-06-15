@@ -104,13 +104,7 @@ def scan_completed_runs(participant_id, session):
 
 
 def get_session_info(config):
-    """Two-step GUI for block selection with visual plan summary.
-
-    Step 1: Participant ID and session number.
-    Step 2: Block plan summary showing DONE/pending status for all 8 blocks,
-            plus a dropdown to select which block to run next.
-    """
-    # --- Compute run timing for display ---
+    """Single GUI dialog for run selection and experiment parameters."""
     import math
     dummy_s = config['dummy_volumes'] * config['TR']
     half_s = config['cycles_per_half'] * config['cycle_duration']
@@ -121,34 +115,17 @@ def get_session_info(config):
     run_min = int(total_s // 60)
     run_sec = int(total_s % 60)
 
-    # --- Step 1: Participant and session ---
-    dlg1 = gui.Dlg(title='fMRI Triangular Wave v2 — Participant')
-    dlg1.addField('Participant ID:', '0001')
-    dlg1.addField('Session:', '01')
-    data1 = dlg1.show()
-    if not dlg1.OK:
-        print('User cancelled.')
-        sys.exit(0)
-
-    participant_id = data1[0]
-    session = data1[1]
-
-    # --- Scan for completed blocks ---
-    completed = scan_completed_runs(participant_id, session)
+    # Build run plan summary (without completion status — checked after)
     block_plan = get_block_plan(config)
-
-    # Build summary text and find next pending run
+    n_cyc = config['cycles_per_half']
     summary_lines = [
         f'--- Run Plan (4 runs, 2 halves each) ---',
         f'Per run: {n_volumes} volumes, {run_min}m {run_sec}s '
-        f'(2 x {config["cycles_per_half"]} cycles x {config["cycle_duration"]:.0f}s, '
+        f'(2 x {n_cyc} cycles x {config["cycle_duration"]:.0f}s, '
         f'{config["mid_run_pause"]:.0f}s pause)',
         '',
     ]
-    n_cyc = config['cycles_per_half']
-    next_block_idx = None
     for i, block in enumerate(block_plan):
-        run_num = f'{i + 1:02d}'
         cond = block['block_type']
         if block['warm_first']:
             direction = (f'Warm-First ({n_cyc} cycles) --> '
@@ -156,26 +133,9 @@ def get_session_info(config):
         else:
             direction = (f'Cold-First ({n_cyc} cycles) --> '
                          f'Warm-First ({n_cyc} cycles)')
-        status = '[DONE]' if run_num in completed else '[--]'
-        summary_lines.append(
-            f"  Run {i + 1} [{cond}]: {direction}  {status}")
-        if run_num not in completed and next_block_idx is None:
-            next_block_idx = i
-
-    if next_block_idx is None:
-        next_block_idx = 0  # all runs done; default to first
-
-    n_done = len(completed)
-    summary_lines.append(f'\n  {n_done}/{len(block_plan)} runs completed')
-
+        summary_lines.append(f"  Run {i + 1} [{cond}]: {direction}")
     summary = '\n'.join(summary_lines)
 
-    # Block choices — next pending block shown first in dropdown
-    all_choices = [f'Run {i + 1}' for i in range(len(block_plan))]
-    choices = ([all_choices[next_block_idx]]
-               + [c for j, c in enumerate(all_choices) if j != next_block_idx])
-
-    # --- Step 2: Block selection with summary ---
     # Auto-detect serial port format from OS
     os_name = platform.system()
     if os_name == 'Linux':
@@ -188,26 +148,38 @@ def get_session_info(config):
         port_label = 'COM port (e.g. COM3, COM8):'
         default_port = 'COM3'
 
-    dlg2 = gui.Dlg(title='fMRI Triangular Wave v3 — Run Selection')
-    dlg2.addText(summary)
-    dlg2.addField('Run:', choices=choices)
-    dlg2.addField('Max delta (°C):', config['max_delta'])
-    dlg2.addField(port_label, default_port)
-    dlg2.addField('Simulation:', config['simulation'])
-    dlg2.addField('Emulate scanner:', config['emulate'])
-    dlg2.addField('Fullscreen:', config['fullscreen'])
-    data2 = dlg2.show()
-    if not dlg2.OK:
+    all_choices = [f'Run {i + 1}' for i in range(len(block_plan))]
+
+    dlg = gui.Dlg(title='fMRI Triangular Wave v3')
+    if hasattr(dlg, 'requiredMsg'):
+        dlg.requiredMsg.hide()
+    dlg.addText(summary)
+    dlg.addField('Participant ID:', '0001')
+    dlg.addField('Session:', '01')
+    dlg.addField('Run:', choices=all_choices)
+    dlg.addField('Body site:', choices=['Arm', 'Leg'])
+    dlg.addField('Max delta (°C):', config['max_delta'])
+    dlg.addField(port_label, default_port)
+    dlg.addField('Simulation:', config['simulation'])
+    dlg.addField('Emulate scanner:', config['emulate'])
+    dlg.addField('Fullscreen:', config['fullscreen'])
+    data = dlg.show()
+    if not dlg.OK:
         print('User cancelled.')
         sys.exit(0)
 
+    participant_id = data[0]
+    session = data[1]
+
     # Parse run selection (e.g. 'Run 2' -> index 1)
-    selected = data2[0]
+    selected = data[2]
     block_num = int(selected.split(' ')[1])
     block_idx = block_num - 1
     selected_block = block_plan[block_idx]
     run_num = f'{block_num:02d}'
 
+    # Check for already-completed runs
+    completed = scan_completed_runs(participant_id, session)
     if run_num in completed:
         print(f'NOTE: Run {block_num} (run-{run_num}) was already run. '
               f'Data will be saved with a new timestamp (not overwritten).')
@@ -219,11 +191,12 @@ def get_session_info(config):
         'block_type': selected_block['block_type'],
         'mask_name': selected_block['mask_name'],
         'warm_first': selected_block['warm_first'],
-        'max_delta': float(data2[1]),
-        'com_port': data2[2],
-        'simulation': data2[3],
-        'emulate': data2[4],
-        'fullscreen': data2[5],
+        'body_site': data[3],
+        'max_delta': float(data[4]),
+        'com_port': data[5],
+        'simulation': data[6],
+        'emulate': data[7],
+        'fullscreen': data[8],
     }
 
 
@@ -283,6 +256,7 @@ def write_thermode_json(path, config, info):
         'block_type': info['block_type'],
         'mask_name': info['mask_name'],
         'warm_first': info['warm_first'],
+        'body_site': info['body_site'],
         'baseline_temp': config['baseline_temp'],
         'max_delta': config['max_delta'],
         'cycle_duration': config['cycle_duration'],
@@ -463,7 +437,7 @@ def main():
     dir1 = 'warm-first' if warm_first else 'cool-first'
     dir2 = 'cool-first' if warm_first else 'warm-first'
 
-    print(f'\n=== Run {info["run"]}: {block_type} | {mask_name} | '
+    print(f'\n=== Run {info["run"]}: {block_type} | {mask_name} | {info["body_site"]} | '
           f'Half 1: {dir1}, Half 2: {dir2} ===\n')
 
     # Create BIDS output paths

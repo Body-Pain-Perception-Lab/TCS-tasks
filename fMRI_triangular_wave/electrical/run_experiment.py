@@ -134,6 +134,7 @@ def get_session_info(config):
     dlg.addField('Max amplitude (mV):', config['max_amplitude'])
     dlg.addField('Pulse width (ms):', config['pulse_width_ms'])
     dlg.addField(port_label, default_port)
+    dlg.addField('Trigger mode:', choices=['keyboard', 'parallel'])
     dlg.addField('Simulation:', config['simulation'])
     dlg.addField('Emulate scanner:', config['emulate'])
     dlg.addField('Fullscreen:', config['fullscreen'])
@@ -166,9 +167,10 @@ def get_session_info(config):
         'max_amplitude': float(data[4]),
         'pulse_width_ms': float(data[5]),
         'com_port': data[6],
-        'simulation': data[7],
-        'emulate': data[8],
-        'fullscreen': data[9],
+        'trigger_mode': data[7],
+        'simulation': data[8],
+        'emulate': data[9],
+        'fullscreen': data[10],
     }
 
 
@@ -336,6 +338,7 @@ def main():
     config['max_amplitude'] = info['max_amplitude']
     config['pulse_width_ms'] = info['pulse_width_ms']
     config['com_port'] = info['com_port']
+    config['trigger_mode'] = info['trigger_mode']
     config['simulation'] = info['simulation']
     config['emulate'] = info['emulate']
     config['fullscreen'] = info['fullscreen']

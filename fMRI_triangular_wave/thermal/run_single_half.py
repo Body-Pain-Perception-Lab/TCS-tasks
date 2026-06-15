@@ -67,6 +67,7 @@ def get_session_info(config):
     dlg1.addField('Body site:', choices=['Arm', 'Leg'])
     dlg1.addField('Max delta (°C):', config['max_delta'])
     dlg1.addField(port_label, default_port)
+    dlg1.addField('Trigger mode:', choices=['keyboard', 'parallel'])
     dlg1.addField('Simulation:', config['simulation'])
     dlg1.addField('Emulate scanner:', config['emulate'])
     dlg1.addField('Fullscreen:', config['fullscreen'])
@@ -90,9 +91,10 @@ def get_session_info(config):
         'body_site': data1[5],
         'max_delta': float(data1[6]),
         'com_port': data1[7],
-        'simulation': data1[8],
-        'emulate': data1[9],
-        'fullscreen': data1[10],
+        'trigger_mode': data1[8],
+        'simulation': data1[9],
+        'emulate': data1[10],
+        'fullscreen': data1[11],
     }
 
 
@@ -157,6 +159,7 @@ def main():
     # Apply GUI selections to config
     config['max_delta'] = info['max_delta']
     config['com_port'] = info['com_port']
+    config['trigger_mode'] = info['trigger_mode']
     config['simulation'] = info['simulation']
     config['emulate'] = info['emulate']
     config['fullscreen'] = info['fullscreen']

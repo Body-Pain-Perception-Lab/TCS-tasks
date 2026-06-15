@@ -29,6 +29,9 @@ class ThermalQC:
     ONSET_THRESHOLD = 0.5
     # Threshold for flagging large temperature errors (deg C)
     TEMP_ERROR_THRESHOLD = 2.0
+    # Sustained error: mean error above this for OVERHEAT_WINDOW_S seconds
+    OVERHEAT_ERROR_THRESHOLD = 3.0  # deg C
+    OVERHEAT_WINDOW_S = 5.0         # seconds of sustained high error
 
     def __init__(self, config):
         self.update_hz = config['update_hz']
@@ -37,6 +40,9 @@ class ThermalQC:
         self.simulation = config['simulation']
 
         self._cycle_summaries = []
+        self._overheat_ring = []     # rolling window of per-sample mean errors
+        self._overheat_ring_max = int(self.OVERHEAT_WINDOW_S * self.update_hz)
+        self._overheat_flagged = False  # True once sustained error detected
         self._reset_cycle()
 
     def _reset_cycle(self):
@@ -86,15 +92,36 @@ class ThermalQC:
             return
 
         # --- Temperature error (commanded vs actual) ---
+        sample_errors = []
         for z in active_zones:
             c = commanded[z]
             a = actual[z]
             if not (math.isnan(a) or math.isnan(c)):
                 error = abs(c - a)
                 self._temp_errors.append(error)
+                sample_errors.append(error)
                 if error > self.TEMP_ERROR_THRESHOLD:
                     print(f'  QC WARNING: zone {z+1} temp error = '
                           f'{error:.1f} C (commanded={c:.1f}, actual={a:.1f})')
+
+        # --- Sustained overheat detection ---
+        if sample_errors:
+            mean_err = sum(sample_errors) / len(sample_errors)
+            self._overheat_ring.append(mean_err)
+            if len(self._overheat_ring) > self._overheat_ring_max:
+                self._overheat_ring.pop(0)
+
+            if len(self._overheat_ring) == self._overheat_ring_max:
+                window_mean = sum(self._overheat_ring) / len(self._overheat_ring)
+                if window_mean > self.OVERHEAT_ERROR_THRESHOLD:
+                    if not self._overheat_flagged:
+                        self._overheat_flagged = True
+                        print(f'\n  *** OVERHEAT WARNING ***  '
+                              f'Mean tracking error = {window_mean:.1f} C '
+                              f'sustained for {self.OVERHEAT_WINDOW_S:.0f}s. '
+                              f'Thermode may be overheating.\n')
+                else:
+                    self._overheat_flagged = False
 
         # --- Onset detection ---
         if not self._onset_detected and delta > 0 and self._command_change_time is None:
@@ -171,6 +198,7 @@ class ThermalQC:
             'mean_temp_error': _safe_mean(errors),
             'max_temp_error': _safe_max(errors),
             'n_ramp_flags': self._n_ramp_flags,
+            'overheat_flagged': self._overheat_flagged,
             'n_samples': len(ramp_rates),
         }
 

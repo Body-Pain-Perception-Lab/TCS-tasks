@@ -175,13 +175,16 @@ def run_block(block_idx, block_type, mask_name, mask_array, warm_first,
         # End-of-cycle QC summary
         cycle_summary = qc.end_cycle()
         partial_tag = ' (partial)' if cycle_idx == n_full_cycles else ''
+        overheat_tag = (' !! OVERHEAT' if cycle_summary.get('overheat_flagged')
+                        else '')
         print(f'  Cycle {cycle_idx + 1}/{total_cycle_count}{partial_tag} QC: '
               f'onset_lat={cycle_summary["onset_latency_s"]:.2f}s, '
               f'ramp={cycle_summary["mean_ramp_rate"]:.2f} deg/s, '
               f'warm={cycle_summary["mean_warming_rate"]:.2f}, '
               f'cool={cycle_summary["mean_cooling_rate"]:.2f}, '
               f'err={cycle_summary["mean_temp_error"]:.2f} C, '
-              f'flags={cycle_summary["n_ramp_flags"]}')
+              f'flags={cycle_summary["n_ramp_flags"]}'
+              f'{overheat_tag}')
 
     stim_end = global_clock.getTime() - trigger_time
     timings.append({

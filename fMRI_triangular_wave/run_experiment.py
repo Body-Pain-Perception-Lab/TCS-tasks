@@ -237,6 +237,22 @@ def create_output_paths(info):
     return paths
 
 
+def _get_config_source():
+    """Return the module name that CONFIG was imported from."""
+    # Walk the import that brought CONFIG into this module
+    import sys
+    for name, mod in sys.modules.items():
+        if name == __name__ or mod is None:
+            continue
+        if hasattr(mod, 'CONFIG') and mod.CONFIG is CONFIG:
+            # Return the filename (e.g. 'config_v2.py'), not full path
+            src = getattr(mod, '__file__', None)
+            if src:
+                return os.path.basename(src)
+            return name
+    return 'unknown'
+
+
 def write_thermode_json(path, config, info):
     """Write JSON sidecar for the thermode recording."""
     sidecar = {
@@ -258,6 +274,8 @@ def write_thermode_json(path, config, info):
         'cycles_per_block': config['cycles_per_block'],
         'ramp_rate': config['ramp_rate'],
         'TR': config['TR'],
+        'config_source': _get_config_source(),
+        'config': config,
     }
     with open(path, 'w') as f:
         json.dump(sidecar, f, indent=2)
@@ -346,7 +364,8 @@ def main():
         'cycle_index', 'onset_latency_s',
         'mean_ramp_rate', 'std_ramp_rate',
         'mean_warming_rate', 'mean_cooling_rate', 'warming_cooling_diff',
-        'mean_temp_error', 'max_temp_error', 'n_ramp_flags', 'n_samples',
+        'mean_temp_error', 'max_temp_error', 'n_ramp_flags',
+        'overheat_flagged', 'n_samples',
     ])
 
     # Initialize thermode
@@ -407,6 +426,7 @@ def main():
                 f'{s["mean_temp_error"]:.4f}',
                 f'{s["max_temp_error"]:.4f}',
                 s['n_ramp_flags'],
+                int(s.get('overheat_flagged', False)),
                 s['n_samples'],
             ])
         qc_file.flush()

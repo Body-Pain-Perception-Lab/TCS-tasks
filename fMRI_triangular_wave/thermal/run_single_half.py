@@ -13,13 +13,8 @@ Usage:
     python run_single_half.py
 """
 
-import os
 import sys
-import csv
 import copy
-import json
-import platform
-from datetime import datetime
 
 from psychopy import visual, event, core, gui
 
@@ -29,6 +24,10 @@ from thermode import ThermodeController
 from run_block import run_block
 from ratings import collect_vas_ratings
 from run_experiment import wait_for_trigger
+from io_utils import (detect_serial_port, create_output_paths,
+                      write_thermode_json, open_output_files,
+                      close_output_files, write_qc_rows, write_event_rows,
+                      write_vas_rows)
 
 
 def get_session_info(config):
@@ -41,17 +40,7 @@ def get_session_info(config):
     run_min = int(total_s // 60)
     run_sec = int(total_s % 60)
 
-    # Auto-detect serial port format from OS
-    os_name = platform.system()
-    if os_name == 'Linux':
-        port_label = 'Serial port (e.g. /dev/ttyACM0):'
-        default_port = '/dev/ttyACM0'
-    elif os_name == 'Darwin':
-        port_label = 'Serial port (e.g. /dev/tty.usbmodem1101):'
-        default_port = '/dev/tty.usbmodem1101'
-    else:
-        port_label = 'COM port (e.g. COM3, COM8):'
-        default_port = 'COM3'
+    port_label, default_port = detect_serial_port()
 
     dlg1 = gui.Dlg(title='Single Half Recovery')
     if hasattr(dlg1, 'requiredMsg'):
@@ -98,60 +87,6 @@ def get_session_info(config):
     }
 
 
-def create_output_paths(info):
-    """Create BIDS output directory and return file paths."""
-    base_dir = os.path.join(os.path.dirname(__file__) or '.', 'data',
-                            f'sub-{info["participant_id"]}',
-                            f'ses-{info["session"]}',
-                            'func')
-    os.makedirs(base_dir, exist_ok=True)
-
-    timestamp = datetime.now().strftime('%Y%m%dT%H%M%S')
-    prefix = (f'sub-{info["participant_id"]}_ses-{info["session"]}'
-              f'_task-tprf_run-{info["run"]}')
-
-    return {
-        'events': os.path.join(
-            base_dir, f'{prefix}_events_{timestamp}.tsv'),
-        'thermode': os.path.join(
-            base_dir, f'{prefix}_thermode_{timestamp}.tsv'),
-        'thermode_json': os.path.join(
-            base_dir, f'{prefix}_thermode_{timestamp}.json'),
-        'qc': os.path.join(
-            base_dir, f'{prefix}_qc_{timestamp}.tsv'),
-    }
-
-
-def write_thermode_json(path, config, info):
-    """Write JSON sidecar for a single-half recovery run."""
-    sidecar = {
-        'SamplingFrequency': config['update_hz'],
-        'StartTime': 0.0,
-        'run_type': 'single_half_recovery',
-        'Columns': [
-            'onset', 'volume', 'block_index', 'block_type', 'cycle_index',
-            'mask_name', 'warm_first', 'delta',
-            'zone1_set', 'zone2_set', 'zone3_set', 'zone4_set', 'zone5_set',
-            'zone1_actual', 'zone2_actual', 'zone3_actual', 'zone4_actual',
-            'zone5_actual',
-        ],
-        'block_type': info['block_type'],
-        'mask_name': info['mask_name'],
-        'warm_first': info['warm_first'],
-        'body_site': info['body_site'],
-        'baseline_temp': config['baseline_temp'],
-        'max_delta': config['max_delta'],
-        'cycle_duration': config['cycle_duration'],
-        'cycles_per_half': config['cycles_per_half'],
-        'ramp_rate': config['ramp_rate'],
-        'TR': config['TR'],
-        'config_source': 'config_v3.py',
-        'config': config,
-    }
-    with open(path, 'w') as f:
-        json.dump(sidecar, f, indent=2)
-
-
 def main():
     config = copy.deepcopy(CONFIG)
     info = get_session_info(config)
@@ -182,32 +117,15 @@ def main():
     print(f'QC:       {paths["qc"]}')
 
     # Write thermode JSON sidecar
-    write_thermode_json(paths['thermode_json'], config, info)
+    write_thermode_json(paths['thermode_json'], config, info,
+                        run_type='single_half_recovery')
 
-    # Open events TSV
-    events_file = open(paths['events'], 'w', newline='')
-    events_writer = csv.writer(events_file, delimiter='\t')
-    events_writer.writerow([
-        'onset', 'duration', 'trial_type',
-        'block_type', 'mask_name', 'warm_first',
-        'response_value', 'response_time',
-    ])
-
-    # Open thermode TSV
-    thermode_file = open(paths['thermode'], 'w', newline='')
-    thermode_writer = csv.writer(thermode_file, delimiter='\t')
-
-    # Open QC TSV
-    qc_file = open(paths['qc'], 'w', newline='')
-    qc_writer = csv.writer(qc_file, delimiter='\t')
-    qc_writer.writerow([
-        'block_type', 'mask_name', 'warm_first',
-        'cycle_index', 'onset_latency_s',
-        'mean_ramp_rate', 'std_ramp_rate',
-        'mean_warming_rate', 'mean_cooling_rate', 'warming_cooling_diff',
-        'mean_temp_error', 'max_temp_error', 'n_ramp_flags',
-        'overheat_flagged', 'n_samples',
-    ])
+    # Open output TSV files
+    out = open_output_files(paths)
+    events_writer = out['events_writer']
+    thermode_writer = out['thermode_writer']
+    thermode_file = out['thermode_file']
+    qc_writer = out['qc_writer']
 
     # Initialize thermode
     thermode = ThermodeController(config)
@@ -251,58 +169,22 @@ def main():
         thermode_file.flush()
 
         # Write QC summaries
-        for s in result['qc_summaries']:
-            qc_writer.writerow([
-                block_type,
-                mask_name,
-                int(warm_first),
-                s['cycle_index'],
-                f'{s["onset_latency_s"]:.4f}',
-                f'{s["mean_ramp_rate"]:.4f}',
-                f'{s["std_ramp_rate"]:.4f}',
-                f'{s["mean_warming_rate"]:.4f}',
-                f'{s["mean_cooling_rate"]:.4f}',
-                f'{s["warming_cooling_diff"]:.4f}',
-                f'{s["mean_temp_error"]:.4f}',
-                f'{s["max_temp_error"]:.4f}',
-                s['n_ramp_flags'],
-                int(s.get('overheat_flagged', False)),
-                s['n_samples'],
-            ])
-        qc_file.flush()
+        write_qc_rows(qc_writer, result['qc_summaries'],
+                       block_type, mask_name, warm_first)
+        out['qc_file'].flush()
 
         # Write phase events
-        for phase in result['timings']:
-            events_writer.writerow([
-                f'{phase["onset"]:.4f}',
-                f'{phase["duration"]:.4f}',
-                phase['trial_type'],
-                block_type,
-                mask_name,
-                int(warm_first),
-                'n/a',
-                'n/a',
-            ])
+        write_event_rows(events_writer, result['timings'],
+                         block_type, mask_name, warm_first)
 
         # VAS ratings
         if config['vas_enabled']:
             print('  Collecting VAS ratings...')
             vas_results = collect_vas_ratings(
                 win, global_clock, trigger_time, config)
-            for r in vas_results:
-                rt = r['rt']
-                is_valid = rt == rt  # NaN check
-                events_writer.writerow([
-                    f'{r["onset_from_trigger_s"]:.4f}',
-                    f'{rt:.4f}' if is_valid else 'n/a',
-                    f'rating_{r["question"]}',
-                    block_type,
-                    mask_name,
-                    int(warm_first),
-                    r['rating'] if is_valid else 'n/a',
-                    f'{rt:.4f}' if is_valid else 'n/a',
-                ])
-            events_file.flush()
+            write_vas_rows(events_writer, vas_results,
+                           block_type, mask_name, warm_first)
+            out['events_file'].flush()
             print('  Ratings: ' + ', '.join(
                 f'{r["question"]}={r["rating"]}' for r in vas_results))
 
@@ -319,9 +201,7 @@ def main():
     finally:
         thermode.set_baseline()
         thermode.close()
-        events_file.close()
-        thermode_file.close()
-        qc_file.close()
+        close_output_files(out)
         win.close()
         print(f'\nEvents:   {paths["events"]}')
         print(f'Thermode: {paths["thermode"]}')

@@ -70,10 +70,10 @@ for pkg in psychopy numpy scipy matplotlib; do
 done
 
 # --- 4. Check TcsControl library (only needed for real hardware) ---
-if "$PYTHON" -c "import TcsControl_python3" 2>/dev/null; then
-    pass "TcsControl_python3 installed"
+if "$PYTHON" -c "import TcsControl_python3_BPPlab" 2>/dev/null; then
+    pass "TcsControl_python3_BPPlab installed"
 else
-    warn "TcsControl_python3 not found (only needed when simulation = False)"
+    warn "TcsControl_python3_BPPlab not found (only needed when simulation = False)"
 fi
 
 # --- 5. Detect serial ports and access (platform-specific) ---

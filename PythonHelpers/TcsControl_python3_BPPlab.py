@@ -42,6 +42,23 @@ class TcsDevice:
         self.s_port.flushOutput()
     
     
+    def set_filter(self, level):
+        """
+        sets MR filter setting
+        :param level: string 'high', 'medium' or 'low' to set filter strength
+        """
+        if level=='high':
+            command = b'Of3'
+        elif level=='medium':
+            command = b'Of2'
+        elif level=='low':
+            command = b'Of1'
+        else:
+            print('Enter a valid filter strength (high, medium, low)')
+            return
+        self.s_port.write(bytes(command))
+        self.s_port.flushOutput()
+
     def set_baseline(self, baselineTemp):
         """
         sets baseline temperature in °C (also called neutral temperature)

@@ -40,7 +40,7 @@ class ThermodeController:
         self.nan_retry_delay = config.get('nan_retry_delay', 0.01)
 
         if not self.simulation:
-            import TcsControl_python3 as TCS
+            import TcsControl_python3_BPPlab as TCS
             self.device = TCS.TcsDevice(port=config['com_port'])
             self.device.set_quiet()
             self.device.set_baseline(config['baseline_temp'])

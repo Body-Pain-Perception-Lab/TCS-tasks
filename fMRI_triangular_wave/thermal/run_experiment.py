@@ -1,19 +1,23 @@
 """
-Run a single combined run of the fMRI tprf thermode experiment.
+Run the fMRI tprf thermode experiment.
 
-Run this script once per run. Each run contains two halves (opposite
-waveform directions) separated by a mid-run pause at baseline temperature.
+Supports two run modes (selected in the GUI):
+
+    Full run (default):
+        Two halves (opposite waveform directions) separated by a mid-run
+        pause at baseline temperature. Select which run from the 4-run plan.
+
+    Single half recovery:
+        One half only (12 cycles). Use when a full run was interrupted and
+        only one half needs to be rerun. Manually specify condition and
+        direction.
 
 Each invocation:
-    1. GUI step 1: enter participant ID and session
-    2. GUI step 2: see run plan summary (which runs are done),
-       select which run to execute
-    3. Wait for scanner trigger
-    4. Half 1 (baseline + 12 cycles)
-    5. Mid-run pause (30s at baseline)
-    6. Half 2 (12 cycles + baseline, opposite direction)
-    7. Collect VAS ratings (if enabled)
-    8. Save data and exit
+    1. GUI: choose run mode, participant ID, session, parameters
+    2. Wait for scanner trigger
+    3. Execute stimulation (full run or single half)
+    4. Collect VAS ratings (if enabled)
+    5. Save data and exit
 
 Output (BIDS, per run):
     func/sub-XX_ses-XX_task-tprf_run-XX_events_<timestamp>.tsv
@@ -105,23 +109,37 @@ def scan_completed_runs(participant_id, session):
 
 
 def get_session_info(config):
-    """Single GUI dialog for run selection and experiment parameters."""
-    import math
-    dummy_s = config['dummy_volumes'] * config['TR']
-    half_s = config['cycles_per_half'] * config['cycle_duration']
-    total_s = (dummy_s + config['baseline_buffer']
-               + half_s + config['mid_run_pause'] + half_s
-               + config['baseline_buffer'])
-    n_volumes = int(math.ceil(total_s / config['TR']))
-    run_min = int(total_s // 60)
-    run_sec = int(total_s % 60)
+    """Single GUI dialog for run mode selection and experiment parameters.
 
-    # Build run plan summary (without completion status — checked after)
+    Supports two run modes:
+        'Full run'              — select from the 4-run plan (2 halves each)
+        'Single half recovery'  — manually specify condition/direction
+    """
+    import math
     block_plan = get_block_plan(config)
     n_cyc = config['cycles_per_half']
+    dummy_s = config['dummy_volumes'] * config['TR']
+    half_s = n_cyc * config['cycle_duration']
+
+    # Full run timing
+    full_s = (dummy_s + config['baseline_buffer']
+              + half_s + config['mid_run_pause'] + half_s
+              + config['baseline_buffer'])
+    full_vols = int(math.ceil(full_s / config['TR']))
+    full_min = int(full_s // 60)
+    full_sec = int(full_s % 60)
+
+    # Single half timing
+    single_s = (dummy_s + config['baseline_buffer']
+                + half_s + config['baseline_buffer'])
+    single_vols = int(math.ceil(single_s / config['TR']))
+    single_min = int(single_s // 60)
+    single_sec = int(single_s % 60)
+
+    # Build run plan summary
     summary_lines = [
         f'--- Run Plan (4 runs, 2 halves each) ---',
-        f'Per run: {n_volumes} volumes, {run_min}m {run_sec}s '
+        f'Full run: {full_vols} volumes, {full_min}m {full_sec}s '
         f'(2 x {n_cyc} cycles x {config["cycle_duration"]:.0f}s, '
         f'{config["mid_run_pause"]:.0f}s pause)',
         '',
@@ -135,19 +153,29 @@ def get_session_info(config):
             direction = (f'Cold-First ({n_cyc} cycles) --> '
                          f'Warm-First ({n_cyc} cycles)')
         summary_lines.append(f"  Run {i + 1} [{cond}]: {direction}")
+    summary_lines.append('')
+    summary_lines.append(
+        f'Recovery: {single_vols} volumes, {single_min}m {single_sec}s '
+        f'({n_cyc} cycles x {config["cycle_duration"]:.0f}s)')
     summary = '\n'.join(summary_lines)
 
     port_label, default_port = detect_serial_port()
-
     all_choices = [f'Run {i + 1}' for i in range(len(block_plan))]
 
     dlg = gui.Dlg(title='fMRI Triangular Wave v3')
     if hasattr(dlg, 'requiredMsg'):
         dlg.requiredMsg.hide()
     dlg.addText(summary)
+    dlg.addField('Run mode:', choices=['Full run', 'Single half recovery'])
     dlg.addField('Participant ID:', '0001')
     dlg.addField('Session:', '01')
-    dlg.addField('Run:', choices=all_choices)
+    # Full run field
+    dlg.addField('Run (full run):', choices=all_choices)
+    # Recovery fields
+    dlg.addField('Condition (recovery):', choices=['NonTGI', 'TGI'])
+    dlg.addField('Direction (recovery):', choices=['warm-first', 'cool-first'])
+    dlg.addField('Run number (recovery):', '01')
+    # Common fields
     dlg.addField('Body site:', choices=['Arm', 'Leg'])
     dlg.addField('Max delta (°C):', config['max_delta'])
     dlg.addField(port_label, default_port)
@@ -160,37 +188,57 @@ def get_session_info(config):
         print('User cancelled.')
         sys.exit(0)
 
-    participant_id = data[0]
-    session = data[1]
+    run_mode = data[0]
+    participant_id = data[1]
+    session = data[2]
 
-    # Parse run selection (e.g. 'Run 2' -> index 1)
-    selected = data[2]
-    block_num = int(selected.split(' ')[1])
-    block_idx = block_num - 1
-    selected_block = block_plan[block_idx]
-    run_num = f'{block_num:02d}'
+    if run_mode == 'Full run':
+        # Parse run selection (e.g. 'Run 2' -> index 1)
+        selected = data[3]
+        block_num = int(selected.split(' ')[1])
+        selected_block = block_plan[block_num - 1]
+        run_num = f'{block_num:02d}'
 
-    # Check for already-completed runs
-    completed = scan_completed_runs(participant_id, session)
-    if run_num in completed:
-        print(f'NOTE: Run {block_num} (run-{run_num}) was already run. '
-              f'Data will be saved with a new timestamp (not overwritten).')
+        # Check for already-completed runs
+        completed = scan_completed_runs(participant_id, session)
+        if run_num in completed:
+            print(f'NOTE: Run {block_num} (run-{run_num}) was already run. '
+                  f'Data will be saved with a new timestamp (not overwritten).')
 
-    return {
+        info = {
+            'run_mode': 'full',
+            'block_type': selected_block['block_type'],
+            'mask_name': selected_block['mask_name'],
+            'warm_first': selected_block['warm_first'],
+        }
+    else:
+        # Recovery mode — use condition/direction/run number fields
+        condition = data[4]
+        mask_name = (config['nontgi_mask'] if condition == 'NonTGI'
+                     else config['tgi_mask'])
+        run_num = data[6]
+
+        info = {
+            'run_mode': 'recovery',
+            'block_type': condition,
+            'mask_name': mask_name,
+            'warm_first': data[5] == 'warm-first',
+        }
+
+    info.update({
         'participant_id': participant_id,
         'session': session,
         'run': run_num,
-        'block_type': selected_block['block_type'],
-        'mask_name': selected_block['mask_name'],
-        'warm_first': selected_block['warm_first'],
-        'body_site': data[3],
-        'max_delta': float(data[4]),
-        'com_port': data[5],
-        'trigger_mode': data[6],
-        'simulation': data[7],
-        'emulate': data[8],
-        'fullscreen': data[9],
-    }
+        'body_site': data[7],
+        'max_delta': float(data[8]),
+        'com_port': data[9],
+        'trigger_mode': data[10],
+        'simulation': data[11],
+        'emulate': data[12],
+        'fullscreen': data[13],
+    })
+
+    return info
 
 
 def wait_for_trigger(config, global_clock, win):
@@ -314,15 +362,23 @@ def main():
     config['fullscreen'] = info['fullscreen']
 
     # Resolve run parameters
+    run_mode = info['run_mode']
     block_type = info['block_type']
     mask_name = info['mask_name']
     mask_array = get_mask(mask_name)
-    warm_first = info['warm_first']  # first half's direction
-    dir1 = 'warm-first' if warm_first else 'cool-first'
-    dir2 = 'cool-first' if warm_first else 'warm-first'
+    warm_first = info['warm_first']
 
-    print(f'\n=== Run {info["run"]}: {block_type} | {mask_name} | {info["body_site"]} | '
-          f'Half 1: {dir1}, Half 2: {dir2} ===\n')
+    if run_mode == 'full':
+        dir1 = 'warm-first' if warm_first else 'cool-first'
+        dir2 = 'cool-first' if warm_first else 'warm-first'
+        print(f'\n=== Run {info["run"]}: {block_type} | {mask_name} | '
+              f'{info["body_site"]} | Half 1: {dir1}, Half 2: {dir2} ===\n')
+    else:
+        direction = 'warm-first' if warm_first else 'cool-first'
+        print(f'\n=== Single Half Recovery ===')
+        print(f'Run {info["run"]}: {block_type} | {mask_name} | '
+              f'{info["body_site"]} | {direction}')
+        print(f'{config["cycles_per_half"]} cycles\n')
 
     # Create BIDS output paths
     paths = create_output_paths(info)
@@ -331,7 +387,8 @@ def main():
     print(f'QC:       {paths["qc"]}')
 
     # Write thermode JSON sidecar
-    write_thermode_json(paths['thermode_json'], config, info)
+    run_type = 'single_half_recovery' if run_mode == 'recovery' else None
+    write_thermode_json(paths['thermode_json'], config, info, run_type=run_type)
 
     # Open output TSV files
     out = open_output_files(paths)
@@ -364,76 +421,103 @@ def main():
     trigger_time = wait_for_trigger(config, global_clock, win)
 
     try:
-        # === Half 1 ===
-        print(f'\n--- Half 1: {dir1} ---')
-        half1_result = run_block(
-            block_idx=0,
-            block_type=block_type,
-            mask_name=mask_name,
-            mask_array=mask_array,
-            warm_first=warm_first,
-            n_blocks=2,
-            thermode=thermode,
-            win=win,
-            global_clock=global_clock,
-            trigger_time=trigger_time,
-            physio_writer=thermode_writer,
-            config=config,
-            physio_file=thermode_file,
-            include_post_baseline=False,
-        )
-        thermode_file.flush()
-        write_qc_rows(qc_writer, half1_result['qc_summaries'],
-                       block_type, mask_name, warm_first)
-        write_event_rows(events_writer, half1_result['timings'],
-                         block_type, mask_name, warm_first)
-        out['qc_file'].flush()
+        if run_mode == 'full':
+            # === Full run: two halves with mid-run pause ===
 
-        # === Mid-run pause ===
-        print(f'\n--- Mid-run pause ({config["mid_run_pause"]:.0f}s) ---')
-        pause_onset = global_clock.getTime() - trigger_time
-        _run_mid_pause(
-            config['mid_run_pause'], thermode, win,
-            global_clock, trigger_time, config,
-            thermode_writer, thermode_file, mask_name,
-        )
-        pause_end = global_clock.getTime() - trigger_time
-        events_writer.writerow([
-            f'{pause_onset:.4f}',
-            f'{pause_end - pause_onset:.4f}',
-            'mid_run_pause',
-            block_type,
-            mask_name,
-            'n/a',
-            'n/a',
-            'n/a',
-        ])
+            # Half 1
+            print(f'\n--- Half 1: {dir1} ---')
+            half1_result = run_block(
+                block_idx=0,
+                block_type=block_type,
+                mask_name=mask_name,
+                mask_array=mask_array,
+                warm_first=warm_first,
+                n_blocks=2,
+                thermode=thermode,
+                win=win,
+                global_clock=global_clock,
+                trigger_time=trigger_time,
+                physio_writer=thermode_writer,
+                config=config,
+                physio_file=thermode_file,
+                include_post_baseline=False,
+            )
+            thermode_file.flush()
+            write_qc_rows(qc_writer, half1_result['qc_summaries'],
+                           block_type, mask_name, warm_first)
+            write_event_rows(events_writer, half1_result['timings'],
+                             block_type, mask_name, warm_first)
+            out['qc_file'].flush()
 
-        # === Half 2 (opposite direction) ===
-        half2_warm_first = not warm_first
-        print(f'\n--- Half 2: {dir2} ---')
-        half2_result = run_block(
-            block_idx=1,
-            block_type=block_type,
-            mask_name=mask_name,
-            mask_array=mask_array,
-            warm_first=half2_warm_first,
-            n_blocks=2,
-            thermode=thermode,
-            win=win,
-            global_clock=global_clock,
-            trigger_time=trigger_time,
-            physio_writer=thermode_writer,
-            config=config,
-            physio_file=thermode_file,
-            include_pre_baseline=False,
-        )
-        thermode_file.flush()
-        write_qc_rows(qc_writer, half2_result['qc_summaries'],
-                       block_type, mask_name, half2_warm_first)
-        write_event_rows(events_writer, half2_result['timings'],
-                         block_type, mask_name, half2_warm_first)
-        out['qc_file'].flush()
+            # Mid-run pause
+            print(f'\n--- Mid-run pause ({config["mid_run_pause"]:.0f}s) ---')
+            pause_onset = global_clock.getTime() - trigger_time
+            _run_mid_pause(
+                config['mid_run_pause'], thermode, win,
+                global_clock, trigger_time, config,
+                thermode_writer, thermode_file, mask_name,
+            )
+            pause_end = global_clock.getTime() - trigger_time
+            events_writer.writerow([
+                f'{pause_onset:.4f}',
+                f'{pause_end - pause_onset:.4f}',
+                'mid_run_pause',
+                block_type,
+                mask_name,
+                'n/a',
+                'n/a',
+                'n/a',
+            ])
+
+            # Half 2 (opposite direction)
+            half2_warm_first = not warm_first
+            print(f'\n--- Half 2: {dir2} ---')
+            half2_result = run_block(
+                block_idx=1,
+                block_type=block_type,
+                mask_name=mask_name,
+                mask_array=mask_array,
+                warm_first=half2_warm_first,
+                n_blocks=2,
+                thermode=thermode,
+                win=win,
+                global_clock=global_clock,
+                trigger_time=trigger_time,
+                physio_writer=thermode_writer,
+                config=config,
+                physio_file=thermode_file,
+                include_pre_baseline=False,
+            )
+            thermode_file.flush()
+            write_qc_rows(qc_writer, half2_result['qc_summaries'],
+                           block_type, mask_name, half2_warm_first)
+            write_event_rows(events_writer, half2_result['timings'],
+                             block_type, mask_name, half2_warm_first)
+            out['qc_file'].flush()
+
+        else:
+            # === Single half recovery ===
+            result = run_block(
+                block_idx=0,
+                block_type=block_type,
+                mask_name=mask_name,
+                mask_array=mask_array,
+                warm_first=warm_first,
+                n_blocks=1,
+                thermode=thermode,
+                win=win,
+                global_clock=global_clock,
+                trigger_time=trigger_time,
+                physio_writer=thermode_writer,
+                config=config,
+                physio_file=thermode_file,
+            )
+            thermode_file.flush()
+            write_qc_rows(qc_writer, result['qc_summaries'],
+                           block_type, mask_name, warm_first)
+            out['qc_file'].flush()
+            write_event_rows(events_writer, result['timings'],
+                             block_type, mask_name, warm_first)
 
         # VAS ratings
         if config['vas_enabled']:
@@ -447,14 +531,16 @@ def main():
                 f'{r["question"]}={r["rating"]}' for r in vas_results))
 
         # Done
-        end_msg = visual.TextStim(win, text='Run complete.\nThank you!',
+        done_label = 'Run' if run_mode == 'full' else 'Half'
+        end_msg = visual.TextStim(win, text=f'{done_label} complete.\nThank you!',
                                   pos=(0, 0), height=0.06, color='white')
         end_msg.draw()
         win.flip()
         core.wait(3.0)
 
     except KeyboardInterrupt:
-        print('\nRun aborted by user.')
+        label = 'Run' if run_mode == 'full' else 'Half'
+        print(f'\n{label} aborted by user.')
 
     finally:
         thermode.set_baseline()

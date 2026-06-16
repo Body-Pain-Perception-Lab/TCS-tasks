@@ -1,8 +1,7 @@
 """Shared I/O utilities for thermal pRF experiment scripts.
 
-Extracted from run_experiment.py and run_single_half.py to avoid
-duplication of BIDS output paths, JSON sidecars, TSV headers, and
-row-writing helpers.
+Shared BIDS output paths, JSON sidecars, TSV headers, and
+row-writing helpers used by run_experiment.py.
 """
 
 import os

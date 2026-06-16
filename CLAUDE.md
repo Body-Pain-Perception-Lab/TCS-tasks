@@ -17,9 +17,9 @@ Shared documentation lives in `docs/` at the repo root.
 fMRI_triangular_wave/
 ├── thermal/                # Thermal stimulation experiment
 │   ├── config_v3.py        # Active config (CONFIG dict)
-│   ├── run_experiment.py   # Main entry point (4 runs, 2 halves each)
-│   ├── run_single_half.py  # Crash recovery (single 12-cycle half)
+│   ├── run_experiment.py   # Main entry point (full run or single half recovery)
 │   ├── run_block.py        # 10 Hz control loop (one half)
+│   ├── io_utils.py         # Shared BIDS output and I/O helpers
 │   ├── waveform.py         # Bipolar triangle wave generation
 │   ├── masks.py            # Spatial mask definitions (NonTGI, TGI)
 │   ├── thermode.py         # TCS hardware wrapper
@@ -62,10 +62,8 @@ docs/                       # Shared documentation (DS5 manual, etc.)
 cd fMRI_triangular_wave/thermal
 
 # Main experiment (run once per run, 4 runs per session)
+# GUI offers "Full run" or "Single half recovery" mode
 python run_experiment.py
-
-# Crash recovery (single 12-cycle half)
-python run_single_half.py
 
 # Pre-check thermode tracking
 python thermode_precheck.py
@@ -104,7 +102,7 @@ Both modalities share the same run structure and execution flow:
 Total: 720s = 12 min = 480 volumes
 ```
 
-**Execution flow:** `run_experiment.py` → single GUI dialog → init hardware → wait for scanner trigger → `run_block.py` (Half 1) → mid-run pause → `run_block.py` (Half 2) → VAS ratings → save BIDS output.
+**Execution flow:** `run_experiment.py` → single GUI dialog (choose full run or single half recovery) → init hardware → wait for scanner trigger → `run_block.py` (Half 1) → [full run only: mid-run pause → `run_block.py` (Half 2)] → VAS ratings → save BIDS output.
 
 **GUI** (identical layout for both modalities):
 - Participant ID, session, run selection
@@ -117,7 +115,7 @@ Total: 720s = 12 min = 480 volumes
 
 Key modules:
 - **config_v3.py** — Single `CONFIG` dict with all parameters (thermal, timing, scanner, masks, hardware, display)
-- **run_experiment.py** — Main entry point: single GUI, block plan, trigger wait, orchestrates two halves + mid-run pause + ratings + file saving
+- **run_experiment.py** — Main entry point: single GUI with run mode selector (full run or single half recovery), block plan, trigger wait, orchestrates halves + mid-run pause + ratings + file saving
 - **run_block.py** — Real-time 10 Hz loop: applies waveform to thermode zones, logs thermode data (TSV), tracks QC per cycle. Supports `include_pre_baseline` / `include_post_baseline` for half-level control.
 - **waveform.py** — Pure numpy functions: `generate_delta_waveform()`, `phase_shift_waveform()`, `apply_mask()`
 - **masks.py** — Static dict of spatial masks defining zone polarity (+1 warm, -1 cool, 0 neutral)

@@ -104,10 +104,11 @@ The run plan is displayed at the top showing all 4 runs with their direction str
 
 ### Crash Recovery (Single Half)
 
-If a run is interrupted mid-way:
+If a run is interrupted mid-way, launch the same script and select
+**Single half recovery** in the Run mode dropdown:
 
 ```bash
-python run_single_half.py
+python run_experiment.py
 ```
 
 Runs a single half (12 cycles) with pre/post baselines. Choose the condition, direction, and run number manually. The JSON sidecar marks these as `run_type: single_half_recovery`.
@@ -154,8 +155,8 @@ thermal/
   qc_monitor.py             — Live matplotlib QC dashboard
   ratings.py                — VAS rating scales (keyboard-controlled, MRI-compatible)
   run_block.py              — Half execution (cycle loop, 10 Hz updates, logging)
-  run_experiment.py         — Main entry point (GUI, trigger, two-half runner)
-  run_single_half.py        — Crash recovery (single 12-cycle half)
+  run_experiment.py         — Main entry point (full run or single half recovery)
+  io_utils.py               — Shared BIDS output and I/O helpers
   analysis/                 — Post-processing scripts
     generate_design_matrix.py — GLM/pRF design matrices
     fourier_analysis.py       — Fourier analysis

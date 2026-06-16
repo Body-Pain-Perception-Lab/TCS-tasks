@@ -12,7 +12,7 @@ Variant of the triangular-wave experiment using a **sinusoidal waveform** instea
 
 ## Shared Resources
 
-- **`PythonHelpers/`** — Python driver for TCS II thermode (`TcsControl_python3.py`)
+- **`PythonHelpers/`** — Python driver for TCS II thermode (`TcsControl_python3_BPPlab.py`)
 - **`docs/`** — TCS hardware manuals and reference documents
 - **`requirements.txt`** — Python dependencies
 
@@ -22,7 +22,7 @@ Variant of the triangular-wave experiment using a **sinusoidal waveform** instea
 - Python 3.8+
 - [PsychoPy](https://www.psychopy.org/) (with pyglet backend)
 - NumPy, SciPy, matplotlib
-- `TcsControl_python3` module (only needed for real thermode hardware)
+- `TcsControl_python3_BPPlab` module (only needed for real thermode hardware)
 
 ### MATLAB experiments
 - MATLAB R2020a or later

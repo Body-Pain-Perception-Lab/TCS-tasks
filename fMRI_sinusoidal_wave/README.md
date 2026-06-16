@@ -9,7 +9,7 @@ Built with **PsychoPy** (Python). Each block is run as an independent invocation
 - Python 3.8+
 - [PsychoPy](https://www.psychopy.org/) (with pyglet backend)
 - NumPy
-- `TcsControl_python3` module (only needed when `simulation = False`)
+- `TcsControl_python3_BPPlab` module (only needed when `simulation = False`)
 
 ## Quick Start (Simulation Mode)
 

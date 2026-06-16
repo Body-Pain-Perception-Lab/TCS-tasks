@@ -11,7 +11,7 @@ Built with **PsychoPy** (Python). Each run is executed as an independent invocat
 - Python 3.8+
 - [PsychoPy](https://www.psychopy.org/) (with pyglet backend)
 - NumPy, SciPy, matplotlib
-- `TcsControl_python3` module (only needed when `simulation = False`)
+- `TcsControl_python3_BPPlab` module (only needed when `simulation = False`)
 
 ## Quick Start (Simulation Mode)
 

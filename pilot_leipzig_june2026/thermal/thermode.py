@@ -40,6 +40,14 @@ class ThermodeController:
         self.nan_retry_delay = config.get('nan_retry_delay', 0.01)
 
         if not self.simulation:
+            import os
+            import sys
+            # TcsControl_python3_BPPlab lives in the repo-level PythonHelpers/ dir
+            # (../../PythonHelpers relative to this file).
+            helpers = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), '..', '..', 'PythonHelpers'))
+            if helpers not in sys.path:
+                sys.path.insert(0, helpers)
             import TcsControl_python3_BPPlab as TCS
             self.device = TCS.TcsDevice(port=config['com_port'])
             # MRI cable filter

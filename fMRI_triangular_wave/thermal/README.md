@@ -156,9 +156,10 @@ thermal/
   run_block.py              — Half execution (cycle loop, 10 Hz updates, logging)
   run_experiment.py         — Main entry point (GUI, trigger, two-half runner)
   run_single_half.py        — Crash recovery (single 12-cycle half)
-  generate_design_matrix.py — GLM/pRF design matrices (post-processing)
-  fourier_analysis.py       — Fourier analysis
-  cluster_fourier/          — Cluster batch scripts for Fourier analysis
+  analysis/                 — Post-processing scripts
+    generate_design_matrix.py — GLM/pRF design matrices
+    fourier_analysis.py       — Fourier analysis
+    cluster_fourier/          — Cluster batch scripts for Fourier analysis
   check_setup.sh            — Environment and dependency checker
   docs/                     — TCS hardware manual
   pilots/                   — Archived pilot configs

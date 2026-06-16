@@ -50,6 +50,11 @@ Optional: nibabel (for NIfTI/MGZ/GIFTI I/O), FreeSurfer (for mri_vol2surf)
 """
 
 import os
+import sys
+
+# Parent thermal/ dir holds config module
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
 import numpy as np
 from scipy.signal import detrend as scipy_detrend
 

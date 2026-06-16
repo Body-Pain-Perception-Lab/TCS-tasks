@@ -27,9 +27,10 @@ fMRI_triangular_wave/
 │   ├── qc.py               # Real-time QC + overheat detection
 │   ├── qc_monitor.py       # Live matplotlib dashboard
 │   ├── ratings.py          # Post-block VAS scales
-│   ├── generate_design_matrix.py  # GLM/pRF design matrices
-│   ├── fourier_analysis.py # Fourier analysis
-│   ├── cluster_fourier/    # Cluster batch scripts for Fourier
+│   ├── analysis/           # Post-processing scripts
+│   │   ├── generate_design_matrix.py  # GLM/pRF design matrices
+│   │   ├── fourier_analysis.py # Fourier analysis
+│   │   └── cluster_fourier/    # Cluster batch scripts for Fourier
 │   ├── check_setup.sh      # Environment and dependency checker
 │   ├── data/               # BIDS output (per-participant)
 │   ├── pilots/             # Archived pilot configs (config.py, config_v1.py)
@@ -73,7 +74,7 @@ python thermode_precheck.py
 python qc_monitor.py
 
 # Generate GLM/pRF design matrices (post-processing)
-python generate_design_matrix.py --sub 0001 --ses 01
+python analysis/generate_design_matrix.py --sub 0001 --ses 01
 ```
 
 ### Electrical

@@ -50,6 +50,9 @@ import sys
 import json
 import argparse
 
+# Parent thermal/ dir holds config and masks modules
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import numpy as np
 from scipy.stats import gamma as gamma_dist
 from scipy.io import savemat

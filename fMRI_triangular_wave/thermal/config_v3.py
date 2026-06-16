@@ -64,7 +64,7 @@ CONFIG = {
     'nontgi_warm_first': True,
 
     # Thermode
-    'com_port': 'COM3',          # serial port (Windows: 'COM3', Linux: '/dev/ttyACM0')
+    'com_port': 'COM7',          # serial port (Windows: TCS thermode = USB Serial Device, e.g. 'COM7'; Linux: '/dev/ttyACM0')
     'tcs_filter': None,          # TCS MRI cable filter: None, 'low', 'medium', 'high'
                                  # Set to 'medium' at Leipzig 7T (reduces MRI interference)
                                  # Set to None if the TCS library doesn't support set_filter()

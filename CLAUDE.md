@@ -174,7 +174,7 @@ Thermal-specific multi-site settings in `config_v3.py`:
 | `tcs_filter` | `None` | `'medium'` |
 
 - **Scanner trigger**: `'keyboard'` mode uses `event.waitKeys()`. `'parallel'` mode waits for a falling edge on the parallel port Acknowledge pin (requires `parallel` module). In emulation mode, both fall back to space bar.
-- **TCS MRI filter**: Set `tcs_filter` to `'medium'` at Leipzig. Requires their version of `TcsControl_python3` with `set_filter()`.
+- **TCS MRI filter**: Set `tcs_filter` to `'medium'` at Leipzig. `set_filter()` is included in `TcsControl_python3_BPPlab`.
 
 ## Key Design Constraints
 
@@ -206,6 +206,6 @@ BIDS-compatible files in `electrical/data/sub-{ID}/ses-{session}/func/` (task: `
 
 - PsychoPy (with pyglet backend), NumPy, matplotlib, scipy
 - `pyserial` — needed for both TCS thermode and DS5 stimulator (when `simulation = False`)
-- `TcsControl_python3` — thermal only, when `simulation = False`
+- `TcsControl_python3_BPPlab` — thermal only, when `simulation = False`
 - `parallel` — only needed when `trigger_mode = 'parallel'` (Leipzig 7T)
 - Requirements listed in `requirements.txt` at repo root

@@ -22,12 +22,13 @@ _REPO_ROOT = os.path.abspath(
 sys.path.insert(0, os.path.join(_REPO_ROOT, 'PythonHelpers'))
 
 from DS5Control_python3_BPPlab import DS5Controller
+from io_utils import detect_serial_port
 
 
 def main():
+    _, default_port = detect_serial_port()
     parser = argparse.ArgumentParser(
         description='Reset the Digitimer DS5 output to 0 mV.')
-    default_port = 'COM8' if sys.platform.startswith('win') else '/dev/ttyUSB0'
     parser.add_argument('--port', default=default_port,
                         help='DS5 serial port (default: %(default)s)')
     args = parser.parse_args()

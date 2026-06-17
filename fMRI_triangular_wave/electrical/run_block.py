@@ -26,7 +26,7 @@ from waveform import generate_amplitude_waveform, phase_shift_waveform, clamp_am
 from qc import ElectricalQC
 
 
-def run_block(block_idx, block_type, warm_first,
+def run_block(block_idx, block_type, up_first,
               n_blocks, ds5, win, global_clock, trigger_time,
               physio_writer, config, physio_file=None,
               include_pre_baseline=True, include_post_baseline=True):
@@ -38,7 +38,7 @@ def run_block(block_idx, block_type, warm_first,
         Half index (0 or 1).
     block_type : str
         Condition label (e.g. 'electrical').
-    warm_first : bool
+    up_first : bool
         If True, waveform starts ramping up; if False, starts ramping down.
     n_blocks : int
         Total number of halves in the run (usually 2).
@@ -85,7 +85,7 @@ def run_block(block_idx, block_type, warm_first,
     waveform = generate_amplitude_waveform(cycle_duration, update_hz,
                                            config['max_amplitude'],
                                            config.get('ramp_floor', 0.0))
-    if not warm_first:
+    if not up_first:
         waveform = phase_shift_waveform(waveform)
 
     # First sample of first cycle and last sample of last cycle are forced
@@ -101,7 +101,7 @@ def run_block(block_idx, block_type, warm_first,
 
     status_text = visual.TextStim(win, text='', pos=(0, -0.35), height=0.03,
                                   color='grey', wrapWidth=1.8)
-    direction = 'ramp-up' if warm_first else 'ramp-down'
+    direction = 'ramp-up' if up_first else 'ramp-down'
 
     # QC tracker
     qc = ElectricalQC(config)
@@ -116,7 +116,7 @@ def run_block(block_idx, block_type, warm_first,
         _run_baseline_period(config['baseline_buffer'], ds5, win, fixation,
                              status_text, global_clock, trigger_time, config,
                              physio_writer, block_idx, block_type,
-                             warm_first, n_blocks, physio_file=physio_file)
+                             up_first, n_blocks, physio_file=physio_file)
         pre_end = global_clock.getTime() - trigger_time
         timings.append({
             'onset': pre_onset,
@@ -235,7 +235,7 @@ def run_block(block_idx, block_type, warm_first,
         _run_baseline_period(config['baseline_buffer'], ds5, win, fixation,
                              status_text, global_clock, trigger_time, config,
                              physio_writer, block_idx, block_type,
-                             warm_first, n_blocks, label='Post-block baseline',
+                             up_first, n_blocks, label='Post-block baseline',
                              physio_file=physio_file)
         post_end = global_clock.getTime() - trigger_time
         timings.append({
@@ -252,14 +252,14 @@ def run_block(block_idx, block_type, warm_first,
 
 def _run_baseline_period(duration, ds5, win, fixation, status_text,
                          global_clock, trigger_time, config, physio_writer,
-                         block_idx, block_type, warm_first,
+                         block_idx, block_type, up_first,
                          n_blocks, label='Baseline', physio_file=None):
     """Hold zero amplitude for a specified duration (no pulses delivered)."""
     ds5.set_amplitude(0)
     update_hz = config['update_hz']
     sample_interval = 1.0 / update_hz
     n_samples = int(duration * update_hz)
-    direction = 'ramp-up' if warm_first else 'ramp-down'
+    direction = 'ramp-up' if up_first else 'ramp-down'
     pulse_width_ms = config['pulse_width_ms']
 
     t_baseline_start = global_clock.getTime()

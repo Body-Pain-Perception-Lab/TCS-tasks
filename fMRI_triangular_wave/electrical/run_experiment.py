@@ -43,21 +43,21 @@ def get_block_plan(config):
     """Return the planned 4-run sequence.
 
     Each run combines two halves with opposite waveform direction.
-    'warm_first' indicates the first half ramps up; second half ramps down.
+    'up_first' indicates the first half ramps up; second half ramps down.
     """
     if config['ramp_up_first']:
         return [
-            {'block_type': 'electrical', 'warm_first': True},
-            {'block_type': 'electrical', 'warm_first': False},
-            {'block_type': 'electrical', 'warm_first': True},
-            {'block_type': 'electrical', 'warm_first': False},
+            {'block_type': 'electrical', 'up_first': True},
+            {'block_type': 'electrical', 'up_first': False},
+            {'block_type': 'electrical', 'up_first': True},
+            {'block_type': 'electrical', 'up_first': False},
         ]
     else:
         return [
-            {'block_type': 'electrical', 'warm_first': False},
-            {'block_type': 'electrical', 'warm_first': True},
-            {'block_type': 'electrical', 'warm_first': False},
-            {'block_type': 'electrical', 'warm_first': True},
+            {'block_type': 'electrical', 'up_first': False},
+            {'block_type': 'electrical', 'up_first': True},
+            {'block_type': 'electrical', 'up_first': False},
+            {'block_type': 'electrical', 'up_first': True},
         ]
 
 
@@ -106,7 +106,7 @@ def get_session_info(config):
         '',
     ]
     for i, block in enumerate(block_plan):
-        if block['warm_first']:
+        if block['up_first']:
             direction = (f'Ramp-Up ({n_cyc} cycles) --> '
                          f'Ramp-Down ({n_cyc} cycles)')
         else:
@@ -118,8 +118,8 @@ def get_session_info(config):
     # Auto-detect serial port
     os_name = platform.system()
     if os_name == 'Linux':
-        port_label = 'Serial port (e.g. /dev/ttyACM0):'
-        default_port = '/dev/ttyACM0'
+        port_label = 'Serial port (e.g. /dev/ttyUSB0):'
+        default_port = '/dev/ttyUSB0'
     elif os_name == 'Darwin':
         port_label = 'Serial port (e.g. /dev/tty.usbmodem1101):'
         default_port = '/dev/tty.usbmodem1101'
@@ -140,7 +140,7 @@ def get_session_info(config):
     dlg.addField('Max amplitude (mV):', config['max_amplitude'])
     dlg.addField('Pulse width (ms):', config['pulse_width_ms'])
     dlg.addField(port_label, default_port)
-    dlg.addField('Trigger mode:', choices=['keyboard', 'parallel'])
+    dlg.addField('Trigger mode:', choices=['parallel', 'keyboard'])
     dlg.addField('Simulation:', config['simulation'])
     dlg.addField('Emulate scanner:', config['emulate'])
     dlg.addField('Fullscreen:', config['fullscreen'])
@@ -168,7 +168,7 @@ def get_session_info(config):
         'session': session,
         'run': run_num,
         'block_type': selected_block['block_type'],
-        'warm_first': selected_block['warm_first'],
+        'up_first': selected_block['up_first'],
         'body_site': data[3],
         'max_amplitude': float(data[4]),
         'pulse_width_ms': float(data[5]),
@@ -206,14 +206,16 @@ def write_stim_json(path, config, info):
         'SamplingFrequency': config['update_hz'],
         'StartTime': 0.0,
         'Columns': [
-            'onset', 'volume', 'block_index', 'block_type', 'cycle_index',
-            'warm_first', 'amplitude_mv', 'pulse_width_ms',
+            'onset', 'volume', 'block_index', 'trial_type', 'cycle_index',
+            'direction', 'amplitude_mv', 'current_ma', 'pulse_width_ms',
         ],
         'block_type': info['block_type'],
-        'warm_first': info['warm_first'],
+        'up_first': info['up_first'],
         'body_site': info['body_site'],
         'max_amplitude': config['max_amplitude'],
+        'ramp_floor': config.get('ramp_floor', 0.0),
         'pulse_width_ms': config['pulse_width_ms'],
+        'update_hz': config['update_hz'],
         'cycle_duration': config['cycle_duration'],
         'cycles_per_half': config['cycles_per_half'],
         'mid_run_pause': config['mid_run_pause'],
@@ -285,8 +287,9 @@ def _run_mid_pause(duration, ds5, win, global_clock, trigger_time,
             0,
             'mid_run_pause',
             -1,
-            0,
+            'pause',
             '0.00',
+            '0.0000',
             f'{config["pulse_width_ms"]:.1f}',
         ])
 
@@ -309,11 +312,11 @@ def _run_mid_pause(duration, ds5, win, global_clock, trigger_time,
             core.wait(wait_time)
 
 
-def _write_qc_rows(qc_writer, qc_summaries, block_type, warm_first):
+def _write_qc_rows(qc_writer, qc_summaries, block_type, up_first):
     for s in qc_summaries:
         qc_writer.writerow([
             block_type,
-            int(warm_first),
+            int(up_first),
             s['cycle_index'],
             s['n_pulses'],
             f'{s["mean_amplitude"]:.2f}',
@@ -324,14 +327,14 @@ def _write_qc_rows(qc_writer, qc_summaries, block_type, warm_first):
         ])
 
 
-def _write_event_rows(events_writer, timings, block_type, warm_first):
+def _write_event_rows(events_writer, timings, block_type, up_first):
     for phase in timings:
         events_writer.writerow([
             f'{phase["onset"]:.4f}',
             f'{phase["duration"]:.4f}',
             phase['trial_type'],
             block_type,
-            int(warm_first),
+            int(up_first),
             'n/a',
             'n/a',
         ])
@@ -350,9 +353,9 @@ def main():
     config['fullscreen'] = info['fullscreen']
 
     block_type = info['block_type']
-    warm_first = info['warm_first']
-    dir1 = 'ramp-up' if warm_first else 'ramp-down'
-    dir2 = 'ramp-down' if warm_first else 'ramp-up'
+    up_first = info['up_first']
+    dir1 = 'ramp-up' if up_first else 'ramp-down'
+    dir2 = 'ramp-down' if up_first else 'ramp-up'
 
     print(f'\n=== Run {info["run"]}: {block_type} | {info["body_site"]} | '
           f'Half 1: {dir1}, Half 2: {dir2} ===\n')
@@ -368,7 +371,7 @@ def main():
     events_writer = csv.writer(events_file, delimiter='\t')
     events_writer.writerow([
         'onset', 'duration', 'trial_type',
-        'block_type', 'warm_first',
+        'block_type', 'up_first',
         'response_value', 'response_time',
     ])
 
@@ -378,7 +381,7 @@ def main():
     qc_file = open(paths['qc'], 'w', newline='')
     qc_writer = csv.writer(qc_file, delimiter='\t')
     qc_writer.writerow([
-        'block_type', 'warm_first',
+        'block_type', 'up_first',
         'cycle_index', 'n_pulses',
         'mean_amplitude', 'max_amplitude',
         'mean_timing_error_ms', 'max_timing_error_ms',
@@ -413,7 +416,7 @@ def main():
         half1_result = run_block(
             block_idx=0,
             block_type=block_type,
-            warm_first=warm_first,
+            up_first=up_first,
             n_blocks=2,
             ds5=ds5,
             win=win,
@@ -426,9 +429,9 @@ def main():
         )
         stim_file.flush()
         _write_qc_rows(qc_writer, half1_result['qc_summaries'],
-                        block_type, warm_first)
+                        block_type, up_first)
         _write_event_rows(events_writer, half1_result['timings'],
-                          block_type, warm_first)
+                          block_type, up_first)
         qc_file.flush()
 
         # === Mid-run pause ===
@@ -451,12 +454,12 @@ def main():
         ])
 
         # === Half 2 (opposite direction) ===
-        half2_warm_first = not warm_first
+        half2_up_first = not up_first
         print(f'\n--- Half 2: {dir2} ---')
         half2_result = run_block(
             block_idx=1,
             block_type=block_type,
-            warm_first=half2_warm_first,
+            up_first=half2_up_first,
             n_blocks=2,
             ds5=ds5,
             win=win,
@@ -469,9 +472,9 @@ def main():
         )
         stim_file.flush()
         _write_qc_rows(qc_writer, half2_result['qc_summaries'],
-                        block_type, half2_warm_first)
+                        block_type, half2_up_first)
         _write_event_rows(events_writer, half2_result['timings'],
-                          block_type, half2_warm_first)
+                          block_type, half2_up_first)
         qc_file.flush()
 
         # VAS ratings
@@ -487,7 +490,7 @@ def main():
                     f'{rt:.4f}' if is_valid else 'n/a',
                     f'rating_{r["question"]}',
                     block_type,
-                    int(warm_first),
+                    int(up_first),
                     r['rating'] if is_valid else 'n/a',
                     f'{rt:.4f}' if is_valid else 'n/a',
                 ])

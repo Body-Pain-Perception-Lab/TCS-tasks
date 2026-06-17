@@ -81,12 +81,18 @@ def run_block(block_idx, block_type, warm_first,
     extra_samples = int(round(frac * samples_per_cycle))
     pulse_width_ms = config['pulse_width_ms']
 
-    # Generate waveform
+    # Generate one seamless cycle (floor→peak→floor, no zeros between cycles)
     waveform = generate_amplitude_waveform(cycle_duration, update_hz,
                                            config['max_amplitude'],
                                            config.get('ramp_floor', 0.0))
     if not warm_first:
         waveform = phase_shift_waveform(waveform)
+
+    # First sample of first cycle and last sample of last cycle are forced
+    # to 0 (silence bookends for the half). Inter-cycle samples stay at
+    # floor..peak for a continuous stimulus.
+    first_sample_zero = True
+    last_sample_zero = True
 
     # Fixation point
     fixation = visual.Circle(win, radius=0.01, edges=32,
@@ -137,6 +143,14 @@ def run_block(block_idx, block_type, warm_first,
 
         for sample_idx in range(n_samples_this_cycle):
             amplitude = float(waveform[sample_idx])
+
+            # Silence bookends: first sample of half → 0, last sample of half → 0
+            is_first = (cycle_idx == 0 and sample_idx == 0)
+            is_last = (cycle_idx == total_cycle_count - 1
+                       and sample_idx == n_samples_this_cycle - 1)
+            if (is_first and first_sample_zero) or (is_last and last_sample_zero):
+                amplitude = 0.0
+
             amplitude = clamp_amplitude(amplitude,
                                         config['amp_min'], config['amp_max'])
             current_mA = amplitude / 1000.0
@@ -241,6 +255,7 @@ def _run_baseline_period(duration, ds5, win, fixation, status_text,
                          block_idx, block_type, warm_first,
                          n_blocks, label='Baseline', physio_file=None):
     """Hold zero amplitude for a specified duration (no pulses delivered)."""
+    ds5.set_amplitude(0)
     update_hz = config['update_hz']
     sample_interval = 1.0 / update_hz
     n_samples = int(duration * update_hz)

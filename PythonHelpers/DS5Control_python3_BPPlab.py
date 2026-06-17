@@ -114,6 +114,16 @@ class DS5Controller:
         if not self.simulation:
             self.ser.write(bytearray([0x50]))  # 'P'
 
+    def reset(self):
+        """Reset the stimulator output to 0 mV (no current).
+
+        Sets the amplitude command to zero so any subsequent pulse delivers
+        no current. Safe to call at any time — e.g. during baseline periods,
+        on shutdown, or after an aborted/crashed run — to ensure the DS5 is
+        not left holding a non-zero amplitude.
+        """
+        self.set_amplitude(0)
+
     def close(self):
         """Close the serial connection."""
         if not self.simulation:

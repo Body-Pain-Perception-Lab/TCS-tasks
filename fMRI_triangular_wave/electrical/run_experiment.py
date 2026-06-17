@@ -27,8 +27,14 @@ from datetime import datetime
 
 from psychopy import visual, event, core, gui
 
-from config_v3 import CONFIG
-from ds5_controller import DS5Controller
+from config_electric_L01 import CONFIG
+# DS5Control_python3_BPPlab lives in the repo-level PythonHelpers/ dir
+# (../../PythonHelpers relative to this file).
+_helpers = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), '..', '..', 'PythonHelpers'))
+if _helpers not in sys.path:
+    sys.path.insert(0, _helpers)
+from DS5Control_python3_BPPlab import DS5Controller
 from run_block import run_block
 from ratings import collect_vas_ratings
 
@@ -212,7 +218,7 @@ def write_stim_json(path, config, info):
         'cycles_per_half': config['cycles_per_half'],
         'mid_run_pause': config['mid_run_pause'],
         'TR': config['TR'],
-        'config_source': 'config_v3.py',
+        'config_source': 'config_electric_L01.py',
         'config': config,
     }
     with open(path, 'w') as f:

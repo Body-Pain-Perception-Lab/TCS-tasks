@@ -46,7 +46,8 @@ def run_block(block_idx, block_type, warm_first,
 
     # Generate waveform
     waveform = generate_amplitude_waveform(cycle_duration, update_hz,
-                                           config['max_amplitude'])
+                                           config['max_amplitude'],
+                                           config.get('ramp_floor', 0.0))
     if not warm_first:
         waveform = phase_shift_waveform(waveform)
 

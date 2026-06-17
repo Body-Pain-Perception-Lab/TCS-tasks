@@ -24,8 +24,9 @@ Total scanning time: 4 x 720s = 2880s = 48 min (plus inter-run gaps)
 CONFIG = {
     # Electrical stimulation
     'baseline_amplitude': 0.0,   # mV (no stimulation during baseline)
-    'max_amplitude': 500.0,      # mV peak amplitude (set during thresholding)
-    'pulse_width_ms': 0.5,       # pulse width in milliseconds
+    'max_amplitude': 2000.0,     # mV peak amplitude (set during thresholding)
+    'ramp_floor': 250.0,         # mV floor — skip sub-threshold range below this
+    'pulse_width_ms': 20.0,      # pulse width in milliseconds
     'amp_min': 0.0,              # mV (safety clamp lower bound)
     'amp_max': 10000.0,          # mV (safety clamp upper bound = DS5 full scale)
 
@@ -36,7 +37,7 @@ CONFIG = {
     'baseline_buffer': 6.0,      # seconds of baseline before/after run
 
     # Update rate
-    'update_hz': 10,             # pulse delivery frequency (10 pulses/second)
+    'update_hz': 8,              # pulse delivery frequency (8 pulses/second)
 
     # MR
     'trigger_mode': 'keyboard',  # 'keyboard' (key press) or 'parallel' (parallel port)
@@ -52,7 +53,7 @@ CONFIG = {
     'ramp_up_first': True,
 
     # DS5 hardware
-    'com_port': 'COM8',          # serial port (Windows: 'COM8', Linux: '/dev/ttyACM0')
+    'com_port': '/dev/ttyUSB0',   # serial port (Windows: 'COM8', Linux: '/dev/ttyUSB0')
     'simulation': False,         # True = no DS5 commands
 
     # VAS ratings

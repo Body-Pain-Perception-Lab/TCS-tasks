@@ -8,11 +8,16 @@ One cycle: 0 → max_amplitude → 0 (single up-down ramp).
 import numpy as np
 
 
-def generate_amplitude_waveform(cycle_duration, update_hz, max_amplitude):
+def generate_amplitude_waveform(cycle_duration, update_hz, max_amplitude,
+                                ramp_floor=0.0):
     """Generate one full cycle of a unipolar triangle wave.
 
-    One cycle ramps from 0 to max_amplitude and back to 0:
+    Without ramp_floor (default 0):
         0 → max → 0
+
+    With ramp_floor > 0 the triangle ramps between floor and max, with a
+    single 0-sample at each endpoint (matching the ds5.py pilot waveform):
+        0 → floor..max..floor → 0
 
     Parameters
     ----------
@@ -22,6 +27,10 @@ def generate_amplitude_waveform(cycle_duration, update_hz, max_amplitude):
         Samples per second.
     max_amplitude : float
         Peak amplitude in mV.
+    ramp_floor : float
+        Minimum non-zero amplitude in mV.  Samples that would fall below
+        this are lifted to the floor, except the very first and last sample
+        which stay at 0.  Default 0 (no floor).
 
     Returns
     -------
@@ -34,6 +43,13 @@ def generate_amplitude_waveform(cycle_duration, update_hz, max_amplitude):
     # Unipolar triangle: 0 → max → 0
     phase = t / cycle_duration
     amplitude = max_amplitude * (1.0 - np.abs(2.0 * phase - 1.0))
+
+    if ramp_floor > 0:
+        # Rescale the ramp portion (samples 1..-2) into floor..max range
+        inner = amplitude[1:-1]
+        inner[:] = ramp_floor + (max_amplitude - ramp_floor) * (inner / max_amplitude)
+        # Endpoints stay at 0
+
     return amplitude
 
 

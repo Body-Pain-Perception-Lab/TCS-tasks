@@ -37,7 +37,7 @@ import glob as _glob
 
 from psychopy import visual, event, core, gui
 
-from config_v3 import CONFIG
+from config_thermal_L01 import CONFIG
 from masks import get_mask
 from thermode import ThermodeController
 from run_block import run_block
@@ -253,8 +253,8 @@ def wait_for_trigger(config, global_clock, win):
     In emulation mode, always uses space bar regardless of trigger_mode.
     """
     if config['emulate']:
-        print('Press space to start...')
-        event.waitKeys(keyList=['space'])
+        input('Press Enter to start...')
+        # event.waitKeys(keyList=['space'])
 
     elif config.get('trigger_mode', 'keyboard') == 'parallel':
         import parallel

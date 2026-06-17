@@ -19,11 +19,8 @@ Usage:
 
 import os
 import sys
-import csv
 import copy
 import json
-import platform
-from datetime import datetime
 
 from psychopy import visual, event, core, gui
 
@@ -37,6 +34,10 @@ if _helpers not in sys.path:
 from DS5Control_python3_BPPlab import DS5Controller
 from run_block import run_block
 from ratings import collect_vas_ratings
+from io_utils import (detect_serial_port, create_output_paths,
+                      write_stim_json, open_output_files,
+                      close_output_files, write_qc_rows, write_event_rows,
+                      write_vas_rows)
 
 
 def get_block_plan(config):
@@ -115,17 +116,7 @@ def get_session_info(config):
         summary_lines.append(f"  Run {i + 1}: {direction}")
     summary = '\n'.join(summary_lines)
 
-    # Auto-detect serial port
-    os_name = platform.system()
-    if os_name == 'Linux':
-        port_label = 'Serial port (e.g. /dev/ttyUSB0):'
-        default_port = '/dev/ttyUSB0'
-    elif os_name == 'Darwin':
-        port_label = 'Serial port (e.g. /dev/tty.usbmodem1101):'
-        default_port = '/dev/tty.usbmodem1101'
-    else:
-        port_label = 'COM port (e.g. COM8):'
-        default_port = 'COM8'
+    port_label, default_port = detect_serial_port()
 
     all_choices = [f'Run {i + 1}' for i in range(len(block_plan))]
 
@@ -179,52 +170,6 @@ def get_session_info(config):
         'fullscreen': data[10],
     }
 
-
-def create_output_paths(info):
-    """Create BIDS output directory and return file paths."""
-    base_dir = os.path.join(os.path.dirname(__file__) or '.', 'data',
-                            f'sub-{info["participant_id"]}',
-                            f'ses-{info["session"]}',
-                            'func')
-    os.makedirs(base_dir, exist_ok=True)
-
-    timestamp = datetime.now().strftime('%Y%m%dT%H%M%S')
-    prefix = (f'sub-{info["participant_id"]}_ses-{info["session"]}'
-              f'_task-eprf_run-{info["run"]}')
-
-    return {
-        'events': os.path.join(base_dir, f'{prefix}_events_{timestamp}.tsv'),
-        'stim': os.path.join(base_dir, f'{prefix}_stim_{timestamp}.tsv'),
-        'stim_json': os.path.join(base_dir, f'{prefix}_stim_{timestamp}.json'),
-        'qc': os.path.join(base_dir, f'{prefix}_qc_{timestamp}.tsv'),
-    }
-
-
-def write_stim_json(path, config, info):
-    """Write JSON sidecar for the stimulation recording."""
-    sidecar = {
-        'SamplingFrequency': config['update_hz'],
-        'StartTime': 0.0,
-        'Columns': [
-            'onset', 'volume', 'block_index', 'trial_type', 'cycle_index',
-            'direction', 'amplitude_mv', 'current_ma', 'pulse_width_ms',
-        ],
-        'block_type': info['block_type'],
-        'up_first': info['up_first'],
-        'body_site': info['body_site'],
-        'max_amplitude': config['max_amplitude'],
-        'ramp_floor': config.get('ramp_floor', 0.0),
-        'pulse_width_ms': config['pulse_width_ms'],
-        'update_hz': config['update_hz'],
-        'cycle_duration': config['cycle_duration'],
-        'cycles_per_half': config['cycles_per_half'],
-        'mid_run_pause': config['mid_run_pause'],
-        'TR': config['TR'],
-        'config_source': 'config_electric_L01.py',
-        'config': config,
-    }
-    with open(path, 'w') as f:
-        json.dump(sidecar, f, indent=2)
 
 
 def wait_for_trigger(config, global_clock, win):
@@ -312,33 +257,6 @@ def _run_mid_pause(duration, ds5, win, global_clock, trigger_time,
             core.wait(wait_time)
 
 
-def _write_qc_rows(qc_writer, qc_summaries, block_type, up_first):
-    for s in qc_summaries:
-        qc_writer.writerow([
-            block_type,
-            int(up_first),
-            s['cycle_index'],
-            s['n_pulses'],
-            f'{s["mean_amplitude"]:.2f}',
-            f'{s["max_amplitude"]:.2f}',
-            f'{s["mean_timing_error_ms"]:.4f}',
-            f'{s["max_timing_error_ms"]:.4f}',
-            s['n_samples'],
-        ])
-
-
-def _write_event_rows(events_writer, timings, block_type, up_first):
-    for phase in timings:
-        events_writer.writerow([
-            f'{phase["onset"]:.4f}',
-            f'{phase["duration"]:.4f}',
-            phase['trial_type'],
-            block_type,
-            int(up_first),
-            'n/a',
-            'n/a',
-        ])
-
 
 def main():
     config = copy.deepcopy(CONFIG)
@@ -366,27 +284,12 @@ def main():
     print(f'QC:     {paths["qc"]}')
 
     write_stim_json(paths['stim_json'], config, info)
-
-    events_file = open(paths['events'], 'w', newline='')
-    events_writer = csv.writer(events_file, delimiter='\t')
-    events_writer.writerow([
-        'onset', 'duration', 'trial_type',
-        'block_type', 'up_first',
-        'response_value', 'response_time',
-    ])
-
-    stim_file = open(paths['stim'], 'w', newline='')
-    stim_writer = csv.writer(stim_file, delimiter='\t')
-
-    qc_file = open(paths['qc'], 'w', newline='')
-    qc_writer = csv.writer(qc_file, delimiter='\t')
-    qc_writer.writerow([
-        'block_type', 'up_first',
-        'cycle_index', 'n_pulses',
-        'mean_amplitude', 'max_amplitude',
-        'mean_timing_error_ms', 'max_timing_error_ms',
-        'n_samples',
-    ])
+    out = open_output_files(paths)
+    events_writer = out['events_writer']
+    stim_writer = out['stim_writer']
+    stim_file = out['stim_file']
+    qc_writer = out['qc_writer']
+    qc_file = out['qc_file']
 
     # Initialize DS5
     ds5 = DS5Controller(port=config['com_port'],
@@ -428,9 +331,9 @@ def main():
             include_post_baseline=False,
         )
         stim_file.flush()
-        _write_qc_rows(qc_writer, half1_result['qc_summaries'],
+        write_qc_rows(qc_writer, half1_result['qc_summaries'],
                         block_type, up_first)
-        _write_event_rows(events_writer, half1_result['timings'],
+        write_event_rows(events_writer, half1_result['timings'],
                           block_type, up_first)
         qc_file.flush()
 
@@ -471,9 +374,9 @@ def main():
             include_pre_baseline=False,
         )
         stim_file.flush()
-        _write_qc_rows(qc_writer, half2_result['qc_summaries'],
+        write_qc_rows(qc_writer, half2_result['qc_summaries'],
                         block_type, half2_up_first)
-        _write_event_rows(events_writer, half2_result['timings'],
+        write_event_rows(events_writer, half2_result['timings'],
                           block_type, half2_up_first)
         qc_file.flush()
 
@@ -482,19 +385,8 @@ def main():
             print('  Collecting VAS ratings...')
             vas_results = collect_vas_ratings(
                 win, global_clock, trigger_time, config)
-            for r in vas_results:
-                rt = r['rt']
-                is_valid = rt == rt
-                events_writer.writerow([
-                    f'{r["onset_from_trigger_s"]:.4f}',
-                    f'{rt:.4f}' if is_valid else 'n/a',
-                    f'rating_{r["question"]}',
-                    block_type,
-                    int(up_first),
-                    r['rating'] if is_valid else 'n/a',
-                    f'{rt:.4f}' if is_valid else 'n/a',
-                ])
-            events_file.flush()
+            write_vas_rows(events_writer, vas_results, block_type, up_first)
+            out['events_file'].flush()
             print('  Ratings: ' + ', '.join(
                 f'{r["question"]}={r["rating"]}' for r in vas_results))
 
@@ -510,9 +402,7 @@ def main():
     finally:
         ds5.set_amplitude(0)
         ds5.close()
-        events_file.close()
-        stim_file.close()
-        qc_file.close()
+        close_output_files(out)
         win.close()
         print(f'\nEvents: {paths["events"]}')
         print(f'Stim:   {paths["stim"]}')

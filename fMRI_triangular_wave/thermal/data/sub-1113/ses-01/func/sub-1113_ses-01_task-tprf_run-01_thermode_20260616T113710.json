@@ -24,6 +24,7 @@
   "block_type": "NonTGI",
   "mask_name": "P1",
   "warm_first": true,
+  "body_site": "Arm",
   "baseline_temp": 30.0,
   "max_delta": 17.5,
   "cycle_duration": 28.0,
@@ -62,6 +63,6 @@
       "Extremely"
     ],
     "fullscreen": false,
-    "screen_index": 1
+    "screen_index": 0
   }
 }
